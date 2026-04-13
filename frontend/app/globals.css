@@ -1,0 +1,325 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== CSS Variables ===== */
+:root {
+  --bg: #020d0a;
+  --bg2: #041510;
+  --bg3: #071e15;
+  --green: #00ff88;
+  --red: #ff3355;
+  --amber: #ffaa00;
+  --cyan: #00d4ff;
+  --text: #c8ffe0;
+  --text-dim: #5a9970;
+  --text-muted: #2d5540;
+  --border: #0d3320;
+  --border-bright: #1a5535;
+}
+
+/* ===== Base Reset ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ===== Scrollbar Styling ===== */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--green);
+}
+
+/* ===== Selection ===== */
+::selection {
+  background: rgba(0, 255, 136, 0.2);
+  color: var(--green);
+}
+
+/* ===== Terminal Glow Effects ===== */
+.glow-green {
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.4), 0 0 20px rgba(0, 255, 136, 0.15);
+}
+
+.glow-red {
+  box-shadow: 0 0 8px rgba(255, 51, 85, 0.4), 0 0 20px rgba(255, 51, 85, 0.15);
+}
+
+.glow-amber {
+  box-shadow: 0 0 8px rgba(255, 170, 0, 0.4), 0 0 20px rgba(255, 170, 0, 0.15);
+}
+
+.text-glow-green {
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
+}
+
+.text-glow-red {
+  text-shadow: 0 0 10px rgba(255, 51, 85, 0.8);
+}
+
+/* ===== Panel Borders ===== */
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.4;
+}
+
+/* ===== Severity Badges ===== */
+.badge-critical {
+  background: rgba(255, 51, 85, 0.15);
+  color: #ff3355;
+  border: 1px solid rgba(255, 51, 85, 0.4);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+}
+
+.badge-high {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
+  border: 1px solid rgba(255, 170, 0, 0.4);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+}
+
+.badge-medium {
+  background: rgba(0, 212, 255, 0.15);
+  color: #00d4ff;
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+}
+
+.badge-low {
+  background: rgba(90, 153, 112, 0.15);
+  color: #5a9970;
+  border: 1px solid rgba(90, 153, 112, 0.3);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+}
+
+/* ===== Score Bar ===== */
+.score-bar-track {
+  background: var(--bg3);
+  height: 3px;
+  width: 100%;
+}
+
+.score-bar-fill-critical {
+  background: linear-gradient(90deg, #ff3355, #ff6688);
+  height: 100%;
+  box-shadow: 0 0 6px rgba(255, 51, 85, 0.6);
+  transition: width 0.8s ease;
+}
+
+.score-bar-fill-high {
+  background: linear-gradient(90deg, #ffaa00, #ffcc44);
+  height: 100%;
+  box-shadow: 0 0 6px rgba(255, 170, 0, 0.6);
+  transition: width 0.8s ease;
+}
+
+.score-bar-fill-medium {
+  background: linear-gradient(90deg, #00d4ff, #44e0ff);
+  height: 100%;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.6);
+  transition: width 0.8s ease;
+}
+
+.score-bar-fill-low {
+  background: linear-gradient(90deg, #5a9970, #88cc99);
+  height: 100%;
+  transition: width 0.8s ease;
+}
+
+/* ===== Scan Animation ===== */
+@keyframes scan-sweep {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes crt-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.96; }
+  94% { opacity: 1; }
+  96% { opacity: 0.98; }
+  97% { opacity: 1; }
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(0, 255, 136, 0.3); }
+  50% { border-color: rgba(0, 255, 136, 0.8); }
+}
+
+.animate-scan-sweep {
+  animation: scan-sweep 2s linear infinite;
+}
+
+.animate-crt {
+  animation: crt-flicker 8s infinite;
+}
+
+.animate-blink {
+  animation: blink-cursor 1s step-end infinite;
+}
+
+.animate-slide-in {
+  animation: slide-in-right 0.3s ease forwards;
+}
+
+.animate-fade-up {
+  animation: fade-in-up 0.4s ease forwards;
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s ease infinite;
+}
+
+/* ===== Typewriter ===== */
+.typewriter-cursor::after {
+  content: '█';
+  animation: blink-cursor 0.8s step-end infinite;
+  color: var(--green);
+}
+
+/* ===== Upload Zone ===== */
+.upload-zone {
+  border: 2px dashed var(--border-bright);
+  transition: all 0.3s ease;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+  border-color: var(--green);
+  background: rgba(0, 255, 136, 0.03);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
+}
+
+/* ===== Log Viewer ===== */
+.log-line-flagged {
+  background: rgba(255, 51, 85, 0.08);
+  border-left: 2px solid #ff3355;
+  color: #ff3355;
+  padding-left: 8px;
+}
+
+.log-line-normal {
+  color: var(--text-dim);
+  padding-left: 10px;
+}
+
+/* ===== IP Table ===== */
+.ip-table-row:hover {
+  background: rgba(0, 255, 136, 0.04);
+}
+
+/* ===== Filter Buttons ===== */
+.filter-btn {
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  padding: 4px 12px;
+  transition: all 0.2s ease;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.filter-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.filter-btn.active {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(0, 255, 136, 0.08);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+}
+
+/* ===== Metric Cards ===== */
+.metric-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 12px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.3;
+}
+
+/* ===== Recharts Overrides ===== */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border-bright) !important;
+  color: var(--text) !important;
+  font-family: 'Share Tech Mono', monospace !important;
+  font-size: 11px !important;
+}
+
+/* ===== Scan Overlay ===== */
+.scan-overlay {
+  background: radial-gradient(ellipse at center, rgba(0, 255, 136, 0.05) 0%, rgba(2, 13, 10, 0.95) 70%);
+}
