@@ -1,0 +1,64 @@
+# ============================================================
+# Log-Sentinel — .gitignore
+# ============================================================
+
+# ---- Python / Backend ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+ENV/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# ---- Environment files (NEVER commit secrets) ----
+backend/.env
+frontend/.env.local
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# ---- Node / Frontend ----
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+*.tsbuildinfo
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---- OS & Editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.user
+*.swp
+*~
+
+# ---- Temp / logs ----
+*.log
+*.log.*
+uvicorn_test.log
+nextjs_test.log
+
+# ---- Demo artifacts that are auto-generated ----
+# (keep demo/sample.log because judges need it)
+# demo/sample.log
