@@ -1,0 +1,16 @@
+
+> log-sentinel-frontend@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.3
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1826ms
+ ○ Compiling / ...
+ ✓ Compiled / in 3.3s (1515 modules)
+ GET / 200 in 3590ms
+ ✓ Compiled in 218ms (764 modules)
+ GET / 200 in 53ms
+ GET / 200 in 49ms
