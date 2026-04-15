@@ -2,9 +2,6 @@
 
 # Log-Sentinel 
 
-> AI-powered security log anomaly detection • Built for hackathon in &lt;24h
-
-[![Deploy Backend](https://railway.app/button.svg)](https://railway.app)
 [![Deploy Frontend](https://vercel.com/button)](https://vercel.com)
 
 ## What It Does
