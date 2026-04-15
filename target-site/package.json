@@ -1,0 +1,13 @@
+{
+  "name": "target-site",
+  "version": "1.0.0",
+  "description": "Demo victim website for Log Sentinel live monitoring",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

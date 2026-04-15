@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+scikit-learn
+pandas
+numpy
+python-dotenv
+groq
+pydantic
+sse-starlette
