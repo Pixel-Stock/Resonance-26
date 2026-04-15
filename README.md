@@ -26,43 +26,6 @@ Log-Sentinel ingests raw system log files, runs **unsupervised Isolation Forest 
 
 ## Quick Start
 
-### Backend
-```bash
-cd backend
-pip install -r requirements.txt
-cp .env.example .env  # add your GEMINI_API_KEY
-python demo_data.py   # generate demo log
-uvicorn main:app --reload
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-# Open http://localhost:3000
-```
-
-### Demo
-1. Click **"LOAD DEMO SCENARIO"**
-2. Watch the scan animation
-3. Click each anomaly in the left panel
-4. Click **"AI BRIEFING"** tab → **Generate AI Briefing**
-5. Try the filter buttons (CRITICAL / BRUTE FORCE / GEO ANOMALY)
-
-## Deployment
-
-**Backend → Railway:**
-```bash
-# Set env var: GEMINI_API_KEY = your_key
-railway up
-```
-
-**Frontend → Vercel:**
-```bash
-# Set env var: NEXT_PUBLIC_BACKEND_URL = https://your-app.up.railway.app
-vercel --prod
-```
 
 ## Repository Structure
 
