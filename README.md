@@ -6,7 +6,7 @@
 
 ## What It Does
 
-Log-Sentinel ingests raw system log files, runs **unsupervised Isolation Forest ML** to detect anomalies, ranks the top 5 threats by severity, and generates expert security briefings via **Gemini 1.5 Flash** — all in under 3 seconds.
+Log-Sentinel ingests raw system log files, runs **unsupervised Isolation Forest ML** to detect anomalies, ranks the top 5 threats by severity, and generates expert security briefings via **Gemini 3 Flash Qwen and Groq** — all in under 3 seconds.
 
 ### Detected Anomaly Types
 | Type | Detection Method |
