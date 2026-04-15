@@ -21,7 +21,7 @@ Log-Sentinel ingests raw system log files, runs **unsupervised Isolation Forest 
 
 - **Frontend**: Next.js 14 + Tailwind + Recharts → Vercel
 - **Backend**: FastAPI + scikit-learn + pandas → Railway
-- **AI**: Gemini 1.5 Flash (free API)
+- **AI**: Gemini 3 Flash (free API)
 - **ML**: Isolation Forest (unsupervised, no labeled data needed)
 
 ## Quick Start
@@ -56,4 +56,4 @@ log-sentinel/
 
 ---
 
-Built with ❤ for cybersecurity hackathon • Team Log-Sentinel
+Built with ❤ by Team Atlas
