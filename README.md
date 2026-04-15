@@ -24,8 +24,6 @@ Log-Sentinel ingests raw system log files, runs **unsupervised Isolation Forest 
 - **AI**: Gemini 3 Flash (free API)
 - **ML**: Isolation Forest (unsupervised, no labeled data needed)
 
-## Quick Start
-
 
 ## Repository Structure
 
