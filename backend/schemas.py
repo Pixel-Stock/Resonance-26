@@ -51,8 +51,13 @@ class Anomaly(BaseModel):
 
 
 class AIBriefing(BaseModel):
-    executive_summary: str = ""
-    technical_details: str = ""
+    executive_summary: str = ""          # ONE sentence — what happened
+    threat_type_label: str = ""          # e.g. "Brute Force + Account Compromise"
+    risk_level: str = ""                 # CRITICAL / HIGH / MEDIUM / LOW
+    time_range: str = ""                 # e.g. "18:22 – 18:45 UTC"
+    affected_hosts: list[str] = Field(default_factory=list)   # chip tags
+    key_facts: dict[str, str] = Field(default_factory=dict)   # key-value technical table
+    technical_details: str = ""          # kept for fallback
     remediation_steps: list[str] = Field(default_factory=list)
 
 

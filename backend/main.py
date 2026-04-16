@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from alerts import fire_alerts
-from briefing import stream_briefing, generate_briefing_sync
+from briefing import stream_briefing, generate_briefing_sync, stream_answer
 from config import (
     ALLOWED_EXTENSIONS,
     DEFAULT_CONTAMINATION,
@@ -345,6 +345,42 @@ async def watch():
         finally:
             if queue in _watch_queues:
                 _watch_queues.remove(queue)
+
+    return EventSourceResponse(event_generator())
+
+
+@app.post("/api/ask")
+async def ask_endpoint(request: Request):
+    """
+    Stream a plain-text answer to an analyst follow-up question about the current incident.
+    Body: { anomalies: [...], question: str, briefing: {...} }
+    SSE events: answer_chunk (text), answer_done
+    """
+    from schemas import Anomaly as AnomalySchema
+    body = await request.json()
+    question = body.get("question", "").strip()
+    briefing_dict = body.get("briefing", {})
+
+    if not question:
+        async def no_q():
+            yield {"event": "answer_done", "data": ""}
+        return EventSourceResponse(no_q())
+
+    try:
+        anomalies = [AnomalySchema.model_validate(a) for a in body.get("anomalies", [])]
+    except Exception as e:
+        async def err():
+            yield {"event": "answer_chunk", "data": f"Could not parse anomaly data: {e}"}
+            yield {"event": "answer_done", "data": ""}
+        return EventSourceResponse(err())
+
+    async def event_generator():
+        try:
+            async for chunk in stream_answer(anomalies, question, briefing_dict):
+                yield {"event": "answer_chunk", "data": chunk}
+        except Exception as e:
+            yield {"event": "answer_chunk", "data": f"Error: {e}"}
+        yield {"event": "answer_done", "data": ""}
 
     return EventSourceResponse(event_generator())
 

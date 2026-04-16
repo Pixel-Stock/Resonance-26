@@ -35,6 +35,12 @@ export interface AIBriefing {
   executive_summary: string;
   technical_details: string;
   remediation_steps: string[];
+  // Structured fields for metric cards / host chips / key-value table
+  threat_type_label?: string;
+  risk_level?: string;
+  time_range?: string;
+  affected_hosts?: string[];
+  key_facts?: Record<string, string>;
 }
 
 export interface AnalysisResult {

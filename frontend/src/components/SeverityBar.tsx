@@ -11,7 +11,6 @@ const LEVELS: { severity: Severity; color: string; bg: string; glow: string; lab
   { severity: "LOW",      color: "#fff", bg: "linear-gradient(135deg, #2dd4bf, #0d9488)", glow: "rgba(13,148,136,0.3)",  label: "Low"      },
 ];
 
-/** Animates a number from 0 to target */
 function useCountUp(target: number, duration = 600): number {
   const [val, setVal] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -19,37 +18,32 @@ function useCountUp(target: number, duration = 600): number {
   useEffect(() => {
     const start = performance.now();
     const from = val;
-
     function tick(now: number) {
       const t = Math.min((now - start) / duration, 1);
-      const ease = 1 - Math.pow(1 - t, 3); // cubic ease-out
+      const ease = 1 - Math.pow(1 - t, 3);
       setVal(Math.round(from + (target - from) * ease));
       if (t < 1) rafRef.current = requestAnimationFrame(tick);
     }
-
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
   return val;
 }
 
-/** "updated X s ago" label that ticks every second */
 function LastUpdated() {
   const [secs, setSecs] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setSecs((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, []);
-
   const label =
     secs < 5  ? "just now" :
     secs < 60 ? `${secs}s ago` :
     `${Math.floor(secs / 60)}m ago`;
-
   return (
-    <span style={{ fontSize: "0.7rem", color: "#94a3b8", fontFamily: "monospace" }}>
+    <span style={{ fontSize: "0.7rem", color: "#64748b", fontFamily: "monospace" }}>
       updated {label}
     </span>
   );
@@ -66,7 +60,11 @@ export function SeverityBar({ anomalies, totalLogs }: SeverityBarProps) {
   ) as Record<Severity, number>;
 
   const animatedTotal = useCountUp(totalLogs, 800);
-  const threatPct = Math.min((anomalies.length / Math.max(totalLogs, 1)) * 100 * 10, 100);
+
+  const threatPct = Math.min(
+    counts.CRITICAL * 15 + counts.HIGH * 8 + counts.MEDIUM * 3 + counts.LOW * 1,
+    100
+  );
 
   return (
     <motion.div
@@ -77,17 +75,22 @@ export function SeverityBar({ anomalies, totalLogs }: SeverityBarProps) {
       style={{ padding: "1rem 1.5rem" }}
     >
       <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-        {/* Total logs — animated */}
-        <div className="flex items-center gap-2 pr-4 sm:pr-6" style={{ borderRight: "1px solid rgba(255,255,255,0.3)" }}>
+        {/* Total logs */}
+        <div
+          className="flex items-center gap-2 pr-4 sm:pr-6"
+          style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}
+        >
           <motion.span
             key={animatedTotal}
             className="text-2xl font-bold tabular-nums"
-            style={{ color: "#1e293b" }}
+            style={{ color: "#e2e8f0" }}
           >
             {animatedTotal.toLocaleString()}
           </motion.span>
           <div className="flex flex-col">
-            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: "#94a3b8" }}>Logs Parsed</span>
+            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: "#64748b" }}>
+              Logs Parsed
+            </span>
             <LastUpdated />
           </div>
         </div>
@@ -113,27 +116,36 @@ export function SeverityBar({ anomalies, totalLogs }: SeverityBarProps) {
             >
               {counts[l.severity]}
             </motion.div>
-            <span className="text-xs font-medium hidden sm:block" style={{ color: "#64748b" }}>
+            <span className="text-xs font-medium hidden sm:block" style={{ color: "#94a3b8" }}>
               {l.label}
             </span>
           </motion.div>
         ))}
 
         {/* Threat level bar */}
-        <div className="flex-1 min-w-[120px] hidden md:block">
-          <div className="flex justify-between text-[10px] font-mono mb-1" style={{ color: "#94a3b8" }}>
-            <span>Threat Level</span>
+        <div className="flex-1 min-w-[160px] hidden md:block">
+          <div className="flex justify-between items-end text-[10px] font-mono mb-1">
+            <div className="flex flex-col">
+              <span style={{ color: "#64748b" }}>Threat Level</span>
+              <span style={{ color: "#475569", fontSize: "9px", lineHeight: 1.3 }}>
+                CRIT×15 · HIGH×8 · MED×3 · LOW×1
+              </span>
+            </div>
             <motion.span
               key={threatPct}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="font-bold tabular-nums text-xs"
+              style={{
+                color: threatPct >= 60 ? "#fb7185" : threatPct >= 30 ? "#fb923c" : threatPct >= 10 ? "#fbbf24" : "#2dd4bf",
+              }}
             >
-              {threatPct.toFixed(1)}%
+              {threatPct.toFixed(0)}%
             </motion.span>
           </div>
           <div
-            className="h-2 w-full overflow-hidden rounded-full"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.35)" }}
+            className="h-2.5 w-full overflow-hidden rounded-full"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
           >
             <motion.div
               initial={{ width: 0 }}
@@ -146,9 +158,16 @@ export function SeverityBar({ anomalies, totalLogs }: SeverityBarProps) {
               }}
             />
           </div>
+          <div className="mt-0.5 text-[9px] font-mono" style={{ color: "#64748b" }}>
+            {threatPct === 0 ? "No active threats" :
+             threatPct < 15 ? "Minimal risk — low-severity events" :
+             threatPct < 40 ? "Elevated — review HIGH events" :
+             threatPct < 70 ? "High risk — active attack patterns" :
+             "CRITICAL — immediate response required"}
+          </div>
         </div>
 
-        {/* Scan score pill */}
+        {/* Status pill */}
         <div
           className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold"
           style={{

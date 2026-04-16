@@ -215,11 +215,11 @@ export function LogViewer({ anomalies, totalLogs }: LogViewerProps) {
           )}
 
           <AnimatePresence>
-            {displayed.map((a) => {
+            {displayed.map((a, i) => {
               const isNew = newIds.has(a.id);
               return (
                 <motion.div
-                  key={a.id}
+                  key={`${a.id}-${i}`}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0 }}

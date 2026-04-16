@@ -9,7 +9,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Log-Sentinel",
+  title: "RedFlag — AI Security Platform",
   description: "AI-Powered Cybersecurity Anomaly Detection",
 };
 
@@ -22,7 +22,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${plusJakartaSans.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} h-full antialiased dark`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col relative overflow-x-hidden">
         <Providers>

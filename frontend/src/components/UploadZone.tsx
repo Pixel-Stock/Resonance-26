@@ -59,20 +59,24 @@ export function UploadZone({ onFileSelected, disabled }: UploadZoneProps) {
       onClick={handleClick}
       className={`
         glass w-full max-w-xl cursor-pointer group relative overflow-hidden
-        ${isDragging ? "!border-violet-300/70" : ""}
+        ${isDragging ? "!border-indigo-400/50" : ""}
         ${disabled ? "opacity-60 pointer-events-none" : ""}
       `}
       style={{
         padding: "4rem 3rem",
         transition: "border-color 0.3s, transform 0.3s",
+        background: isDragging
+          ? "rgba(99,102,241,0.07)"
+          : "rgba(30,41,59,0.4)",
       }}
       whileHover={{ scale: 1.015, y: -2 }}
     >
-      {/* Holographic shimmer on hover */}
+      {/* Shimmer on hover */}
       <div
         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
         style={{
-          background: "linear-gradient(135deg, rgba(196,181,253,0.15) 0%, rgba(165,243,252,0.1) 40%, rgba(251,146,191,0.1) 70%, transparent 100%)",
+          background:
+            "linear-gradient(135deg, rgba(129,140,248,0.07) 0%, rgba(45,212,191,0.05) 40%, rgba(251,146,191,0.05) 70%, transparent 100%)",
           borderRadius: "inherit",
         }}
       />
@@ -91,31 +95,48 @@ export function UploadZone({ onFileSelected, disabled }: UploadZoneProps) {
           whileHover={{ scale: 1.08 }}
           transition={{ type: "spring", stiffness: 300 }}
         >
-          {/* Icon container — embossed glass circle */}
           <div
             style={{
-              background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.3) 100%)",
-              border: "1.5px solid rgba(255,255,255,0.05)",
+              background:
+                "linear-gradient(135deg, rgba(129,140,248,0.12) 0%, rgba(129,140,248,0.06) 100%)",
+              border: "1px solid rgba(129,140,248,0.2)",
               borderRadius: "50%",
               padding: "1.5rem",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.06), inset 0 2px 4px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.03)",
+              boxShadow:
+                "0 4px 20px rgba(99,102,241,0.15), inset 0 1px 0 rgba(129,140,248,0.2)",
             }}
           >
             <AnimatePresence mode="wait">
               {fileName ? (
-                <motion.div key="file" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}>
-                  <FileText className="w-10 h-10 text-violet-500" />
+                <motion.div
+                  key="file"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                >
+                  <FileText className="w-10 h-10" style={{ color: "#818cf8" }} />
                 </motion.div>
               ) : (
-                <motion.div key="upload" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}>
-                  <UploadCloud className="w-10 h-10 text-violet-500" />
+                <motion.div
+                  key="upload"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                >
+                  <UploadCloud
+                    className="w-10 h-10"
+                    style={{ color: "#818cf8" }}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         </motion.div>
 
-        <h3 className="text-xl font-semibold tracking-tight" style={{ color: "#1e293b" }}>
+        <h3
+          className="text-xl font-semibold tracking-tight"
+          style={{ color: "#e2e8f0" }}
+        >
           {fileName || "Upload System Logs"}
         </h3>
         <p className="mt-2 text-center text-sm" style={{ color: "#64748b" }}>
@@ -125,7 +146,10 @@ export function UploadZone({ onFileSelected, disabled }: UploadZoneProps) {
         </p>
 
         {!fileName && (
-          <div className="pill-ghost mt-6 text-xs" style={{ padding: "8px 24px" }}>
+          <div
+            className="pill-ghost mt-6 text-xs"
+            style={{ padding: "8px 24px" }}
+          >
             Browse Files
           </div>
         )}

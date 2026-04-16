@@ -7,11 +7,19 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -19,20 +27,61 @@
 }
 
 :root {
-  --background: #f0eeeb;
-  --foreground: #1e293b;
+  --card: #ffffff;
+  --ring: #6366f1;
+  --input: #d1d5db;
+  --muted: #f3f4f6;
+  --accent: #e0e7ff;
   --border: rgba(255, 255, 255, 0.18);
-  --input: rgba(255, 255, 255, 0.25);
-  --ring: #a78bfa;
-  --radius: 24px;
+  --radius: 0.5rem;
+  --primary: #6366f1;
+  --secondary: #e5e7eb;
+  --background: #f8fafc;
+  --foreground: #1e293b;
+  --destructive: #ef4444;
+  --card-foreground: #1e293b;
+  --primary-foreground: #ffffff;
+  --muted-foreground: #6b7280;
+  --accent-foreground: #374151;
+  --secondary-foreground: #374151;
+  --destructive-foreground: #ffffff;
+  --sidebar: #f3f4f6;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e0e7ff;
+  --sidebar-accent-foreground: #374151;
+  --sidebar-border: #d1d5db;
+  --sidebar-ring: #6366f1;
 }
 
 .dark {
-  --background: #f0eeeb;
-  --foreground: #1e293b;
-  --border: rgba(255, 255, 255, 0.18);
-  --input: rgba(255, 255, 255, 0.25);
-  --ring: #a78bfa;
+  --card: #1e293b;
+  --ring: #818cf8;
+  --input: #4b5563;
+  --muted: #1e293b;
+  --accent: #374151;
+  --border: rgba(255, 255, 255, 0.08);
+  --radius: 0.5rem;
+  --primary: #818cf8;
+  --secondary: #2d3748;
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --destructive: #ef4444;
+  --card-foreground: #e2e8f0;
+  --primary-foreground: #0f172a;
+  --muted-foreground: #9ca3af;
+  --accent-foreground: #d1d5db;
+  --secondary-foreground: #d1d5db;
+  --destructive-foreground: #0f172a;
+  --sidebar: #1e293b;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #818cf8;
+  --sidebar-primary-foreground: #0f172a;
+  --sidebar-accent: #374151;
+  --sidebar-accent-foreground: #d1d5db;
+  --sidebar-border: #4b5563;
+  --sidebar-ring: #818cf8;
 }
 
 @layer base {
@@ -51,8 +100,8 @@
 
 /*
  * ═══════════════════════════════════════════
- *  CLEAR GLASS DESIGN SYSTEM (DASHBOARD)
- *  No blur. No fills. Light catches only at edges.
+ *  DARK GLASS DESIGN SYSTEM — RedFlag
+ *  Deep navy base. Purple/indigo glass edges.
  * ═══════════════════════════════════════════
  */
 
@@ -60,16 +109,12 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: #f0eeeb;
-  color: #1e293b;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 /*
  * OUTER GLASS PANEL — the single large floating rectangle.
- * Fully transparent. Glass identity comes from edges + shadow only.
- * Top/left borders = bright white (light catching the glass edge).
- * Bottom/right borders = subtle dark (shadow side of the glass).
- * Box-shadow: large soft float shadow + top inset bevel/refraction highlight.
  */
 .glass-outer {
   background: transparent;
@@ -86,10 +131,22 @@ body {
   position: relative;
 }
 
+.dark .glass-outer {
+  background: rgba(15, 23, 42, 0.94);
+  border-top: 1.5px solid rgba(129, 140, 248, 0.4);
+  border-left: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-right: 1.5px solid rgba(0, 0, 0, 0.6);
+  border-bottom: 1.5px solid rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.7),
+    0 12px 32px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(99, 102, 241, 0.05),
+    inset 0 1.5px 0 rgba(129, 140, 248, 0.2);
+  color: #e2e8f0;
+}
+
 /*
- * INNER COMPONENT CARDS — smaller panes inside the outer glass sheet.
- * Even more transparent — defined only by thin edge lines.
- * The inset top highlight gives a subtle bevel to mark the pane boundary.
+ * INNER COMPONENT CARDS — glass panes inside the outer sheet.
  */
 .glass {
   background: transparent;
@@ -102,7 +159,18 @@ body {
   position: relative;
 }
 
-/* Sub-containers nested inside cards — even lighter edge only */
+.dark .glass {
+  background: rgba(30, 41, 59, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top-color: rgba(129, 140, 248, 0.18);
+  border-left-color: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(129, 140, 248, 0.08),
+    0 4px 20px rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+}
+
+/* Sub-containers nested inside cards */
 .glass-sub {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -110,7 +178,13 @@ body {
   border-radius: 12px;
 }
 
-/* Severity-tinted cards — transparent, colored borders only */
+.dark .glass-sub {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top-color: rgba(129, 140, 248, 0.12);
+}
+
+/* Severity-tinted cards — light mode */
 .glass-critical {
   background: transparent;
   border: 1px solid rgba(225, 29, 72, 0.18);
@@ -147,23 +221,55 @@ body {
   color: #134e4a;
 }
 
-/* Pill buttons - Clean solid colors */
+/* Severity cards — dark mode overrides */
+.dark .glass-critical {
+  background: rgba(225, 29, 72, 0.07);
+  border: 1px solid rgba(225, 29, 72, 0.28);
+  border-top-color: rgba(251, 113, 133, 0.45);
+  box-shadow: inset 0 1px 0 rgba(251, 113, 133, 0.12), 0 0 24px rgba(225, 29, 72, 0.08);
+  color: #fda4af;
+}
+
+.dark .glass-high {
+  background: rgba(234, 88, 12, 0.07);
+  border: 1px solid rgba(234, 88, 12, 0.28);
+  border-top-color: rgba(251, 146, 60, 0.45);
+  box-shadow: inset 0 1px 0 rgba(253, 186, 116, 0.12);
+  color: #fdba74;
+}
+
+.dark .glass-medium {
+  background: rgba(217, 119, 6, 0.07);
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-top-color: rgba(251, 191, 36, 0.45);
+  box-shadow: inset 0 1px 0 rgba(253, 230, 138, 0.12);
+  color: #fde68a;
+}
+
+.dark .glass-low {
+  background: rgba(20, 184, 166, 0.07);
+  border: 1px solid rgba(20, 184, 166, 0.28);
+  border-top-color: rgba(45, 212, 191, 0.45);
+  box-shadow: inset 0 1px 0 rgba(153, 246, 228, 0.12);
+  color: #99f6e4;
+}
+
+/* Pill buttons */
 .pill-primary {
   padding: 10px 28px;
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
   color: white;
-  background: #3b82f6; /* Dashboard blue */
+  background: linear-gradient(135deg, #818cf8, #6366f1);
   border: none;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 .pill-primary:hover {
-  transform: translateY(-1px);
-  background: #2563eb;
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.55), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
 .pill-secondary {
@@ -172,15 +278,15 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   color: white;
-  background: #14b8a6;
+  background: linear-gradient(135deg, #2dd4bf, #0d9488);
   border: none;
-  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.35);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 .pill-secondary:hover {
   transform: translateY(-1px);
-  background: #0d9488;
+  box-shadow: 0 6px 18px rgba(20, 184, 166, 0.5);
 }
 
 .pill-ghost {
@@ -188,41 +294,144 @@ body {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #475569;
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  border-top-color: rgba(255, 255, 255, 0.90);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  color: #94a3b8;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(129, 140, 248, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(129, 140, 248, 0.12);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 .pill-ghost:hover {
-  background: rgba(255, 255, 255, 0.75);
-  color: #1e293b;
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(129, 140, 248, 0.2);
+  border-color: rgba(129, 140, 248, 0.3);
 }
 
-/* Utility Animations */
+/* Stats cards */
+.stats-card {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top-color: rgba(129, 140, 248, 0.18);
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.stats-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(129,140,248,0.5), transparent);
+  border-radius: 16px 16px 0 0;
+}
+.stats-card:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(129,140,248,0.2);
+  border-color: rgba(129,140,248,0.2);
+}
+
+/* Sidebar nav items */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover {
+  background: rgba(129, 140, 248, 0.08);
+  color: #94a3b8;
+}
+.nav-item.active {
+  background: rgba(129, 140, 248, 0.14);
+  color: #818cf8;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(129,140,248,0.2);
+}
+.nav-item.active .nav-icon {
+  filter: drop-shadow(0 0 6px rgba(129,140,248,0.7));
+}
+
+/* Landing page hero gradient */
+.landing-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(129, 140, 248, 0.08) 0%, transparent 50%),
+    var(--background);
+}
+
+/* Feature card for landing page */
+.feature-card {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top-color: rgba(129, 140, 248, 0.2);
+  border-radius: 16px;
+  padding: 1.5rem;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.feature-card:hover {
+  background: rgba(30, 41, 59, 0.75);
+  border-color: rgba(129, 140, 248, 0.3);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(129,140,248,0.2);
+}
+
+/* Glow dot */
+.glow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  position: relative;
+}
+.glow-dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.35);
+  animation: ping 1.5s ease-out infinite;
+}
+
+/* Utility animations */
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-.animate-shimmer {
-  animation: shimmer 2s ease-in-out infinite;
-}
+.animate-shimmer { animation: shimmer 2s ease-in-out infinite; }
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
-.animate-float {
-  animation: float 4s ease-in-out infinite;
+.animate-float { animation: float 4s ease-in-out infinite; }
+
+@keyframes ping {
+  0% { transform: scale(1); opacity: 1; }
+  75%, 100% { transform: scale(2.2); opacity: 0; }
 }
 
-.video-bg {
-  display: none;
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(129, 140, 248, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(129, 140, 248, 0.6); }
 }
-.video-overlay {
-  display: none;
-}
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+.video-bg { display: none; }
+.video-overlay { display: none; }

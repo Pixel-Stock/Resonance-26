@@ -2,9 +2,13 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { RotateCcw, Radio, Shield, WifiOff, Download, LogOut } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
+import {
+  RotateCcw, Radio, Shield, WifiOff, Download, ShieldOff,
+  LayoutDashboard, Upload, Activity, History, Zap, Brain, Bell,
+  FileText, CheckCircle, ShieldAlert, X, Sparkles,
+} from "lucide-react";
 import { downloadPDFReport } from "@/lib/generateReport";
+import { downloadBlocklist } from "@/lib/generateBlocklist";
 
 import { UploadZone } from "@/components/UploadZone";
 import { ScanAnimation } from "@/components/ScanAnimation";
@@ -15,14 +19,397 @@ import { ThreatMap } from "@/components/ThreatMap";
 import { AttackTimeline } from "@/components/AttackTimeline";
 import { SeverityBar } from "@/components/SeverityBar";
 import { HistorySidebar, type HistoryEntry } from "@/components/HistorySidebar";
+import { IPDetailPanel } from "@/components/IPDetailPanel";
+import { FollowUpChat } from "@/components/FollowUpChat";
 import { analyzeLog } from "@/lib/api";
-import type { AnalysisState, Anomaly, Severity } from "@/lib/types";
+import { sendEmailAlert } from "@/lib/emailRelay";
+import type { AnalysisState, AnalysisResult, Anomaly, Severity } from "@/lib/types";
 
 const TOP_N = 10;
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+type NavItem = "dashboard" | "upload" | "monitor" | "history";
+
+/* ── Mini sparkline for stat cards ─────────────────────────── */
+function Sparkline({ color, up }: { color: string; up?: boolean }) {
+  const pts = up
+    ? [3, 5, 4, 7, 6, 9, 7, 11, 8, 12]
+    : [12, 10, 11, 8, 9, 7, 8, 5, 7, 6];
+  const max = Math.max(...pts);
+  const w = 56, h = 24;
+  const path = pts
+    .map((p, i) => {
+      const x = (i / (pts.length - 1)) * w;
+      const y = h - (p / max) * h;
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ opacity: 0.7 }}>
+      <path
+        d={path}
+        stroke={color}
+        strokeWidth={1.8}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/* ── 4 stats cards shown above results ─────────────────────── */
+function StatsCards({ result }: { result: AnalysisResult }) {
+  const total = result.total_logs_parsed;
+  const anomalies = result.total_anomalies;
+  const cleanRate = ((1 - anomalies / Math.max(total, 1)) * 100).toFixed(1);
+  const critCount = result.anomalies.filter((a) => a.severity === "CRITICAL").length;
+  const highCount = result.anomalies.filter((a) => a.severity === "HIGH").length;
+  const threatLevel = Math.min(critCount * 15 + highCount * 8, 100);
+
+  const cards = [
+    {
+      label: "Total Logs Parsed",
+      value: total.toLocaleString(),
+      badge: "Analyzed",
+      positive: true,
+      color: "#818cf8",
+      icon: <FileText className="w-4 h-4" />,
+    },
+    {
+      label: "Anomalies Detected",
+      value: anomalies.toString(),
+      badge: anomalies > 0 ? `${critCount} critical` : "All clear",
+      positive: anomalies === 0,
+      color: anomalies > 0 ? "#fb7185" : "#2dd4bf",
+      icon: <ShieldAlert className="w-4 h-4" />,
+    },
+    {
+      label: "Clean Rate",
+      value: `${cleanRate}%`,
+      badge: parseFloat(cleanRate) > 95 ? "Healthy" : "Review needed",
+      positive: parseFloat(cleanRate) > 95,
+      color: parseFloat(cleanRate) > 95 ? "#2dd4bf" : "#fb923c",
+      icon: <CheckCircle className="w-4 h-4" />,
+    },
+    {
+      label: "Threat Level",
+      value: `${threatLevel}%`,
+      badge:
+        threatLevel > 60
+          ? "CRITICAL"
+          : threatLevel > 30
+          ? "HIGH"
+          : threatLevel > 10
+          ? "MEDIUM"
+          : "LOW",
+      positive: threatLevel < 15,
+      color:
+        threatLevel > 60 ? "#fb7185" : threatLevel > 30 ? "#fb923c" : "#fbbf24",
+      icon: <Activity className="w-4 h-4" />,
+      isProgress: true,
+      progressValue: threatLevel,
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {cards.map((card, i) => (
+        <motion.div
+          key={card.label}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.07, type: "spring", stiffness: 250, damping: 20 }}
+          className="stats-card"
+          style={{ cursor: "default" }}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: `${card.color}1a`,
+                color: card.color,
+                border: `1px solid ${card.color}33`,
+              }}
+            >
+              {card.icon}
+            </div>
+            <Sparkline color={card.color} up={card.positive} />
+          </div>
+          <p
+            className="text-2xl font-bold mb-0.5 tabular-nums"
+            style={{ color: "#e2e8f0" }}
+          >
+            {card.value}
+          </p>
+          <p className="text-xs font-medium mb-2" style={{ color: "#64748b" }}>
+            {card.label}
+          </p>
+          {card.isProgress ? (
+            <div>
+              <div
+                className="h-1.5 rounded-full overflow-hidden mb-1"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+              >
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${card.progressValue}%` }}
+                  transition={{ duration: 1.2, ease: "easeOut" }}
+                  style={{
+                    height: "100%",
+                    background: `linear-gradient(90deg, ${card.color}88, ${card.color})`,
+                    borderRadius: "999px",
+                  }}
+                />
+              </div>
+              <span
+                className="text-[10px] font-bold"
+                style={{ color: card.color }}
+              >
+                {card.badge}
+              </span>
+            </div>
+          ) : (
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{
+                background: card.positive
+                  ? "rgba(45,212,191,0.12)"
+                  : "rgba(251,113,133,0.12)",
+                color: card.positive ? "#2dd4bf" : "#fb7185",
+                border: `1px solid ${
+                  card.positive
+                    ? "rgba(45,212,191,0.2)"
+                    : "rgba(251,113,133,0.2)"
+                }`,
+              }}
+            >
+              {card.badge}
+            </span>
+          )}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Landing page ────────────────────────────────────────────── */
+function LandingPage({
+  onUpload,
+  onMonitor,
+}: {
+  onUpload: () => void;
+  onMonitor: () => void;
+}) {
+  return (
+    <div
+      className="landing-bg min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden"
+      style={{ fontFamily: "var(--font-sans)" }}
+    >
+      {/* Ambient glow */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          top: "-15%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "700px",
+          height: "700px",
+          background:
+            "radial-gradient(circle, rgba(99,102,241,0.16) 0%, transparent 70%)",
+          borderRadius: "50%",
+        }}
+      />
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          bottom: "5%",
+          right: "5%",
+          width: "400px",
+          height: "400px",
+          background:
+            "radial-gradient(circle, rgba(129,140,248,0.06) 0%, transparent 70%)",
+          borderRadius: "50%",
+        }}
+      />
+
+      {/* Hero */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 22 }}
+        className="flex flex-col items-center mb-14 relative z-10"
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-8">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{
+              background: "linear-gradient(135deg, #818cf8, #6366f1)",
+              boxShadow:
+                "0 8px 28px rgba(99,102,241,0.45), inset 0 1px 0 rgba(255,255,255,0.3)",
+            }}
+          >
+            <Shield className="w-7 h-7 text-white" />
+          </div>
+          <div>
+            <h1
+              className="text-3xl font-bold tracking-tight"
+              style={{ color: "#e2e8f0" }}
+            >
+              RedFlag
+            </h1>
+            <p className="text-sm" style={{ color: "#64748b" }}>
+              AI Security Platform
+            </p>
+          </div>
+        </div>
+
+        <h2
+          className="text-4xl sm:text-5xl font-bold text-center leading-tight mb-4"
+          style={{ color: "#e2e8f0" }}
+        >
+          AI-Powered Log Anomaly{" "}
+          <span
+            style={{
+              background: "linear-gradient(135deg, #818cf8, #6366f1)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            Detection
+          </span>
+        </h2>
+        <p
+          className="text-base text-center max-w-lg mb-10 leading-relaxed"
+          style={{ color: "#64748b" }}
+        >
+          Upload your SSH or application logs. Isolation Forest ML finds
+          anomalies in seconds. Gemini generates your executive security
+          briefing.
+        </p>
+
+        <div className="flex items-center gap-3 flex-wrap justify-center">
+          <motion.button
+            onClick={onUpload}
+            whileHover={{ scale: 1.04, y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            className="pill-primary flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Upload Logs
+          </motion.button>
+          <motion.button
+            onClick={onMonitor}
+            whileHover={{ scale: 1.04, y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            className="pill-ghost flex items-center gap-2"
+          >
+            <Radio className="w-4 h-4" />
+            Start Monitoring
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Feature cards */}
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18, type: "spring", stiffness: 180, damping: 22 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl w-full relative z-10"
+      >
+        {[
+          {
+            icon: <Zap className="w-6 h-6" />,
+            color: "#818cf8",
+            title: "Real-time Detection",
+            desc: "Isolation Forest ML flags anomalies the moment they appear. Brute-force, lateral movement, zero-day patterns caught instantly.",
+          },
+          {
+            icon: <Brain className="w-6 h-6" />,
+            color: "#2dd4bf",
+            title: "AI Security Insights",
+            desc: "Gemini-powered briefings explain each attack — executive summary, technical deep-dive, and step-by-step remediation.",
+          },
+          {
+            icon: <Bell className="w-6 h-6" />,
+            color: "#fb923c",
+            title: "Automated Alerts",
+            desc: "Critical and high-severity threats trigger instant email alerts. Block lists generated on demand.",
+          },
+        ].map((feat, i) => (
+          <motion.div
+            key={feat.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              delay: 0.28 + i * 0.08,
+              type: "spring",
+              stiffness: 200,
+              damping: 22,
+            }}
+            className="feature-card"
+          >
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+              style={{
+                background: `${feat.color}1a`,
+                color: feat.color,
+                border: `1px solid ${feat.color}30`,
+              }}
+            >
+              {feat.icon}
+            </div>
+            <h3
+              className="font-semibold mb-1.5"
+              style={{ color: "#e2e8f0" }}
+            >
+              {feat.title}
+            </h3>
+            <p
+              className="text-sm leading-relaxed"
+              style={{ color: "#64748b" }}
+            >
+              {feat.desc}
+            </p>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Try demo */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.55 }}
+        className="mt-10 relative z-10"
+      >
+        <button
+          onClick={onUpload}
+          className="flex items-center gap-2 text-sm font-medium"
+          style={{
+            color: "#818cf8",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textDecoration: "underline",
+            textDecorationStyle: "dotted",
+          }}
+        >
+          <Sparkles className="w-4 h-4" />
+          Try Sample Logs
+        </button>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ── Main export ─────────────────────────────────────────────── */
 export default function Home() {
+  const [showLanding, setShowLanding] = useState(true);
+  const [activeNav, setActiveNav] = useState<NavItem>("upload");
   const [state, setState] = useState<AnalysisState>({ phase: "idle" });
+  const [selectedIP, setSelectedIP] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
   const currentLabelRef = useRef<string>("");
@@ -39,6 +426,12 @@ export default function Home() {
     } catch { /* ignore */ }
   }, []);
 
+  /* ── Auto-switch nav when phase changes ──────────────────── */
+  useEffect(() => {
+    if (state.phase === "done") setActiveNav("dashboard");
+    if (state.phase === "live_monitoring") setActiveNav("monitor");
+  }, [state.phase]);
+
   /* ── Save to history when analysis finishes ──────────────── */
   useEffect(() => {
     if (state.phase === "done" && prevPhaseRef.current !== "done") {
@@ -49,7 +442,10 @@ export default function Home() {
         totalLogs: state.result.total_logs_parsed,
         anomalyCount: state.result.total_anomalies,
         severityCounts: (["CRITICAL", "HIGH", "MEDIUM", "LOW"] as Severity[]).reduce(
-          (acc, sev) => ({ ...acc, [sev]: state.result.anomalies.filter((a) => a.severity === sev).length }),
+          (acc, sev) => ({
+            ...acc,
+            [sev]: state.result.anomalies.filter((a) => a.severity === sev).length,
+          }),
           {} as Record<Severity, number>,
         ),
         result: state.result,
@@ -57,7 +453,9 @@ export default function Home() {
       };
       setHistory((prev) => {
         const next = [entry, ...prev].slice(0, 20);
-        try { localStorage.setItem("log_sentinel_history", JSON.stringify(next)); } catch { /* ignore */ }
+        try {
+          localStorage.setItem("log_sentinel_history", JSON.stringify(next));
+        } catch { /* ignore */ }
         return next;
       });
       setActiveHistoryId(entry.id);
@@ -74,7 +472,13 @@ export default function Home() {
   const handleLiveMonitor = useCallback(async () => {
     const abort = new AbortController();
     watchAbortRef.current = abort;
-    setState({ phase: "live_monitoring", anomalies: [], alertsFired: 0, briefing: null, briefingChunks: "" });
+    setState({
+      phase: "live_monitoring",
+      anomalies: [],
+      alertsFired: 0,
+      briefing: null,
+      briefingChunks: "",
+    });
 
     let response: Response;
     try {
@@ -84,7 +488,10 @@ export default function Home() {
       });
     } catch {
       if (!abort.signal.aborted) {
-        setState({ phase: "error", message: "Cannot connect to backend. Is it running on port 8000?" });
+        setState({
+          phase: "error",
+          message: "Cannot connect to backend. Is it running on port 8000?",
+        });
       }
       return;
     }
@@ -97,7 +504,6 @@ export default function Home() {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    // These must live OUTSIDE the while loop so state persists across chunks
     let eventType = "";
     let dataBuffer = "";
 
@@ -110,21 +516,34 @@ export default function Home() {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith("event: ")) { eventType = line.slice(7).trim(); dataBuffer = ""; }
-          else if (line.startsWith("data: ")) { dataBuffer += line.slice(6); }
-          else if (line.trim() === "" && eventType && dataBuffer) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+            dataBuffer = "";
+          } else if (line.startsWith("data: ")) {
+            dataBuffer += line.slice(6);
+          } else if (line.trim() === "" && eventType && dataBuffer) {
             try {
               if (eventType === "anomaly") {
                 const anomaly = JSON.parse(dataBuffer) as Anomaly;
+                if (
+                  anomaly.severity === "CRITICAL" ||
+                  anomaly.severity === "HIGH"
+                ) {
+                  sendEmailAlert(anomaly).catch((e) =>
+                    console.error("[emailRelay]", e)
+                  );
+                }
                 setState((prev) => {
                   if (prev.phase !== "live_monitoring") return prev;
                   const alreadyExists = prev.anomalies.some(
                     (a) => a.parsed_log.raw === anomaly.parsed_log.raw
                   );
                   if (alreadyExists) return prev;
-                  const fired = anomaly.severity === "CRITICAL" || anomaly.severity === "HIGH"
-                    ? prev.alertsFired + 1
-                    : prev.alertsFired;
+                  const fired =
+                    anomaly.severity === "CRITICAL" ||
+                    anomaly.severity === "HIGH"
+                      ? prev.alertsFired + 1
+                      : prev.alertsFired;
                   return {
                     ...prev,
                     anomalies: [anomaly, ...prev.anomalies],
@@ -151,6 +570,7 @@ export default function Home() {
     if (briefingDebounceRef.current) clearTimeout(briefingDebounceRef.current);
     watchAbortRef.current = null;
     setState({ phase: "idle" });
+    setActiveNav("dashboard");
   }, []);
 
   const triggerLiveBriefing = useCallback(async (anomalies: Anomaly[]) => {
@@ -158,14 +578,19 @@ export default function Home() {
     const abort = new AbortController();
     briefingAbortRef.current = abort;
 
-    setState((prev) => prev.phase === "live_monitoring"
-      ? { ...prev, briefing: null, briefingChunks: "" }
-      : prev);
+    setState((prev) =>
+      prev.phase === "live_monitoring"
+        ? { ...prev, briefing: null, briefingChunks: "" }
+        : prev
+    );
 
     try {
       const resp = await fetch(`${API_URL}/api/briefing`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify({ anomalies }),
         signal: abort.signal,
       });
@@ -184,405 +609,983 @@ export default function Home() {
         const lines = buf.split("\n");
         buf = lines.pop() || "";
         for (const line of lines) {
-          if (line.startsWith("event: ")) { evType = line.slice(7).trim(); evData = ""; }
-          else if (line.startsWith("data: ")) { evData += line.slice(6); }
-          else if (line.trim() === "" && evType && evData) {
+          if (line.startsWith("event: ")) {
+            evType = line.slice(7).trim();
+            evData = "";
+          } else if (line.startsWith("data: ")) {
+            evData += line.slice(6);
+          } else if (line.trim() === "" && evType && evData) {
             try {
               if (evType === "briefing_chunk") {
-                setState((prev) => prev.phase === "live_monitoring"
-                  ? { ...prev, briefingChunks: prev.briefingChunks + evData }
-                  : prev);
+                setState((prev) =>
+                  prev.phase === "live_monitoring"
+                    ? { ...prev, briefingChunks: prev.briefingChunks + evData }
+                    : prev
+                );
               } else if (evType === "briefing_done") {
                 const briefing = JSON.parse(evData);
-                setState((prev) => prev.phase === "live_monitoring"
-                  ? { ...prev, briefing, briefingChunks: "" }
-                  : prev);
+                setState((prev) =>
+                  prev.phase === "live_monitoring"
+                    ? { ...prev, briefing, briefingChunks: "" }
+                    : prev
+                );
               }
             } catch { /* ignore */ }
-            evType = ""; evData = "";
+            evType = "";
+            evData = "";
           }
         }
       }
     } catch { /* AbortError expected on new trigger */ }
   }, []);
 
-  /* ── Auto-generate briefing when live anomalies change ───────── */
-  const liveAnomalyCount = state.phase === "live_monitoring" ? state.anomalies.length : -1;
+  /* ── Auto-briefing when live anomalies change ──────────────── */
+  const liveAnomalyCount =
+    state.phase === "live_monitoring" ? state.anomalies.length : -1;
+
   useEffect(() => {
     if (liveAnomalyCount <= 0) return;
-    // state guaranteed to be live_monitoring here because liveAnomalyCount > 0
-    const anomalies = (state as Extract<typeof state, { phase: "live_monitoring" }>).anomalies;
+    const anomalies = (
+      state as Extract<typeof state, { phase: "live_monitoring" }>
+    ).anomalies;
     const hasSevere = anomalies.some(
       (a) => a.severity === "CRITICAL" || a.severity === "HIGH"
     );
     if (!hasSevere) return;
-
     if (briefingDebounceRef.current) clearTimeout(briefingDebounceRef.current);
     briefingDebounceRef.current = setTimeout(() => {
       triggerLiveBriefing(anomalies);
     }, 1500);
-
     return () => {
       if (briefingDebounceRef.current) clearTimeout(briefingDebounceRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveAnomalyCount]);
 
   const handleReset = useCallback(() => {
     setState({ phase: "idle" });
     setActiveHistoryId(null);
+    setActiveNav("upload");
   }, []);
 
   const handleSelectHistory = useCallback((entry: HistoryEntry) => {
     setActiveHistoryId(entry.id);
+    setActiveNav("dashboard");
     setState({
       phase: "done",
       result: entry.result,
-      briefing: entry.briefing ?? { executive_summary: "", technical_details: "", remediation_steps: [] },
+      briefing: entry.briefing ?? {
+        executive_summary: "",
+        technical_details: "",
+        remediation_steps: [],
+      },
     });
   }, []);
 
   const handleClearHistory = useCallback(() => {
     setHistory([]);
     setActiveHistoryId(null);
-    try { localStorage.removeItem("log_sentinel_history"); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem("log_sentinel_history");
+    } catch { /* ignore */ }
   }, []);
 
-  const { data: session } = useSession();
+  const isProcessing = state.phase === "uploading" || state.phase === "analyzing";
+  const hasResults =
+    state.phase === "streaming_briefing" || state.phase === "done";
+  const isLiveMonitor = state.phase === "live_monitoring";
+  const result = hasResults ? state.result : null;
 
-  const isProcessing    = state.phase === "uploading" || state.phase === "analyzing";
-  const hasResults      = state.phase === "streaming_briefing" || state.phase === "done";
-  const isLiveMonitor   = state.phase === "live_monitoring";
-  const result          = hasResults ? state.result : null;
+  /* ── Landing page ──────────────────────────────────────────── */
+  if (showLanding) {
+    return (
+      <LandingPage
+        onUpload={() => {
+          setShowLanding(false);
+          setActiveNav("upload");
+        }}
+        onMonitor={() => {
+          setShowLanding(false);
+          setActiveNav("monitor");
+          handleLiveMonitor();
+        }}
+      />
+    );
+  }
 
+  const NAV_ITEMS: {
+    id: NavItem;
+    label: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: <LayoutDashboard className="w-4 h-4 nav-icon" />,
+    },
+    {
+      id: "upload",
+      label: "Upload Logs",
+      icon: <Upload className="w-4 h-4 nav-icon" />,
+    },
+    {
+      id: "monitor",
+      label: "Live Monitor",
+      icon: <Radio className="w-4 h-4 nav-icon" />,
+    },
+    {
+      id: "history",
+      label: "History",
+      icon: <History className="w-4 h-4 nav-icon" />,
+    },
+  ];
+
+  /* ── Dashboard App ─────────────────────────────────────────── */
   return (
     <div className="flex w-full h-screen p-4 md:p-6 lg:p-8 font-sans items-center justify-center overflow-hidden">
-      {/* ── OUTER GLASS RECTANGLE ─────────────────────────── */}
+      {/* IP Detail Panel — shown above everything */}
+      {selectedIP &&
+        (() => {
+          const allAnomalies =
+            state.phase === "done"
+              ? state.result.anomalies
+              : state.phase === "live_monitoring"
+              ? state.anomalies
+              : [];
+          return (
+            <IPDetailPanel
+              ip={selectedIP}
+              allAnomalies={allAnomalies}
+              onClose={() => setSelectedIP(null)}
+            />
+          );
+        })()}
+
+      {/* ── OUTER GLASS RECTANGLE ────────────────────────────── */}
       <div className="glass-outer w-full max-w-[1700px] h-full flex overflow-hidden">
 
         {/* ── LEFT SIDEBAR ─────────────────────────────────── */}
-        <aside className="w-[300px] flex-shrink-0 h-full hidden lg:flex flex-col" style={{ borderRight: '1px solid rgba(255,255,255,0.2)' }}>
-          <div className="w-full h-full flex flex-col overflow-hidden relative p-6">
-          {/* Logo lockup */}
-          <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.25)" }}>
-            <div className="flex items-center gap-3 mb-1">
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
-                  boxShadow: "0 4px 12px rgba(124,58,237,0.3), inset 0 1px 1px rgba(255,255,255,0.4)",
-                }}
-              >
-                <Shield className="w-4 h-4 text-white" />
-              </div>
-              <h1 className="text-lg font-bold tracking-tight" style={{ color: "#1e293b" }}>
-                Log Sentinel
-              </h1>
-            </div>
-            <p className="text-[11px] font-medium pl-[44px]" style={{ color: "#94a3b8" }}>
-              AI Anomaly Detection
-            </p>
-          </div>
+        <aside
+          className="w-[260px] flex-shrink-0 h-full hidden lg:flex flex-col"
+          style={{ borderRight: "1px solid rgba(129,140,248,0.12)" }}
+        >
+          <div className="w-full h-full flex flex-col overflow-hidden p-4">
 
-          {/* User info */}
-          <div
-            className="flex items-center gap-3 px-4 py-3"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.2)", borderTop: "1px solid rgba(255,255,255,0.12)" }}
-          >
-            {session?.user?.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={session.user.image}
-                alt=""
-                className="w-8 h-8 rounded-full flex-shrink-0"
-                style={{ border: "1.5px solid rgba(255,255,255,0.5)" }}
-              />
-            ) : (
-              <div
-                className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                style={{ background: "linear-gradient(135deg, #a78bfa, #7c3aed)" }}
-              >
-                {session?.user?.name?.[0]?.toUpperCase() ?? "?"}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-semibold truncate" style={{ color: "#1e293b" }}>
-                {session?.user?.name ?? "User"}
-              </p>
-              <p className="text-[10px] truncate" style={{ color: "#94a3b8" }}>
-                {session?.user?.email ?? ""}
-              </p>
-            </div>
-            <button
-              onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-              title="Sign out"
-              className="flex-shrink-0"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", color: "#94a3b8", lineHeight: 1 }}
+            {/* Logo */}
+            <div
+              className="px-2 pt-3 pb-4 mb-2"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
             >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* History list */}
-          <div className="flex-1 overflow-y-auto px-4 py-2 mt-2">
-            <HistorySidebar
-              history={history}
-              activeId={activeHistoryId}
-              onSelect={handleSelectHistory}
-              onClear={handleClearHistory}
-            />
-          </div>
-        </div>
-        </aside>
-
-        {/* ── MAIN CONTENT ──────────────────────────────────── */}
-        <main className="flex-1 h-full relative overflow-y-auto p-6 pb-12" style={{scrollbarWidth: 'none'}}>
-          <div className="w-full mx-auto flex flex-col gap-6">
-
-          {/* Header */}
-          <header className="flex items-center justify-between pb-4">
-            {/* Mobile: show logo (sidebar hidden on mobile) */}
-            <div className="flex items-center gap-2 lg:hidden">
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
-                  boxShadow: "0 3px 8px rgba(124,58,237,0.3), inset 0 1px 1px rgba(255,255,255,0.4)",
-                }}
-              >
-                <Shield className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h1 className="text-base font-bold tracking-tight" style={{ color: "#1e293b" }}>Log Sentinel</h1>
-              </div>
-            </div>
-            {/* Desktop: just a spacer to push reset btn right */}
-            <div className="hidden lg:block" />
-
-            <div className="flex items-center gap-2">
-              {state.phase === "done" && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  onClick={() =>
-                    downloadPDFReport(
-                      state.result,
-                      state.briefing,
-                      currentLabelRef.current || "analysis"
-                    )
-                  }
-                  className="pill-ghost flex items-center gap-2"
-                  style={{ padding: "8px 20px", fontSize: "0.85rem" }}
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                    boxShadow:
+                      "0 4px 14px rgba(99,102,241,0.4), inset 0 1px 0 rgba(255,255,255,0.3)",
+                  }}
                 >
-                  <Download className="w-4 h-4" />
-                  Download PDF
-                </motion.button>
-              )}
-              {(hasResults || isLiveMonitor) && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  onClick={isLiveMonitor ? handleStopMonitor : handleReset}
-                  className="pill-ghost flex items-center gap-2"
-                  style={{ padding: "8px 20px", fontSize: "0.85rem" }}
-                >
-                  {isLiveMonitor ? (
-                    <><WifiOff className="w-4 h-4" /> Stop Monitor</>
-                  ) : (
-                    <><RotateCcw className="w-4 h-4" /> New Analysis</>
-                  )}
-                </motion.button>
-              )}
-            </div>
-          </header>
-
-          <AnimatePresence mode="wait">
-
-            {/* ── IDLE ──────────────────────────────────────── */}
-            {state.phase === "idle" && (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -16 }}
-                className="flex flex-col items-center justify-center gap-5 py-12"
-              >
-                <div className="text-center max-w-md">
-                  <h2 className="text-xl font-bold" style={{ color: "#1e293b" }}>
-                    Deploy Log Files
-                  </h2>
-                  <p className="text-sm mt-2 leading-relaxed" style={{ color: "#64748b" }}>
-                    Upload{" "}
-                    <code className="font-mono text-violet-500">.log</code> or{" "}
-                    <code className="font-mono text-violet-500">.txt</code> files.
-                    Isolation Forest ML detects anomalies; Gemini generates executive briefing.
+                  <Shield className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h1
+                    className="text-base font-bold tracking-tight"
+                    style={{ color: "#e2e8f0" }}
+                  >
+                    RedFlag
+                  </h1>
+                  <p className="text-[10px]" style={{ color: "#64748b" }}>
+                    AI Security Platform
                   </p>
                 </div>
+              </div>
+            </div>
 
-                <UploadZone onFileSelected={handleFileSelected} />
-
-                {/* Live Monitor — compact, unobtrusive */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px]" style={{ color: "#cbd5e1" }}>or</span>
-                  <motion.button
-                    onClick={handleLiveMonitor}
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full transition-all duration-200"
-                    style={{
-                      padding: "5px 14px",
-                      background: "rgba(255,255,255,0.45)",
-                      border: "1px solid rgba(255,255,255,0.65)",
-                      borderTop: "1px solid rgba(255,255,255,0.92)",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.88)",
-                      color: "#475569",
+            {/* Nav items */}
+            <nav className="flex flex-col gap-0.5 mb-4">
+              {NAV_ITEMS.map((item) => {
+                const isActive = activeNav === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      if (item.id === "monitor" && !isLiveMonitor) {
+                        setActiveNav("monitor");
+                        handleLiveMonitor();
+                      } else if (item.id === "upload") {
+                        if (isLiveMonitor) handleStopMonitor();
+                        setActiveNav("upload");
+                        setState({ phase: "idle" });
+                        setActiveHistoryId(null);
+                      } else {
+                        setActiveNav(item.id);
+                      }
                     }}
+                    className={`nav-item ${isActive ? "active" : ""}`}
                   >
-                    <Radio className="w-2.5 h-2.5 text-violet-500" />
-                    Live Monitor
-                  </motion.button>
-                </div>
-              </motion.div>
-            )}
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {item.id === "monitor" && isLiveMonitor && (
+                      <span className="ml-auto flex items-center gap-1.5">
+                        <span
+                          className="relative flex h-2 w-2"
+                        >
+                          <span
+                            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                            style={{ background: "#ef4444" }}
+                          />
+                          <span
+                            className="relative inline-flex rounded-full h-2 w-2"
+                            style={{ background: "#ef4444" }}
+                          />
+                        </span>
+                        <span
+                          className="text-[10px] font-mono font-bold"
+                          style={{ color: "#ef4444" }}
+                        >
+                          LIVE
+                        </span>
+                      </span>
+                    )}
+                    {item.id === "dashboard" && result && !isActive && (
+                      <span
+                        className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{
+                          background: "rgba(129,140,248,0.14)",
+                          color: "#818cf8",
+                        }}
+                      >
+                        {result.total_anomalies}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
 
-            {/* ── PROCESSING ────────────────────────────────── */}
-            {isProcessing && (
-              <motion.div
-                key="scanning"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center justify-center py-20"
+            {/* Recent scans divider */}
+            <div
+              className="flex items-center gap-2 mb-3 px-1"
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.07)",
+                paddingTop: "12px",
+              }}
+            >
+              <History className="w-3 h-3" style={{ color: "#475569" }} />
+              <span
+                className="text-[10px] uppercase tracking-wider font-semibold"
+                style={{ color: "#475569" }}
               >
-                <ScanAnimation phase={state.phase as "uploading" | "analyzing"} />
-              </motion.div>
-            )}
-
-            {/* ── ERROR ─────────────────────────────────────── */}
-            {state.phase === "error" && (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center gap-4 py-16"
-              >
-                <div className="glass-critical p-8 rounded-[24px] text-center max-w-md">
-                  <h3 className="text-lg font-semibold mb-2">Analysis Failed</h3>
-                  <p className="text-sm opacity-80">{state.message}</p>
-                </div>
-                <button onClick={handleReset} className="pill-ghost flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4" />
-                  Try Again
-                </button>
-              </motion.div>
-            )}
-
-            {/* ── LIVE MONITOR ──────────────────────────────── */}
-            {isLiveMonitor && state.phase === "live_monitoring" && (
-              <motion.div
-                key="live"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col gap-4"
-              >
-                {/* Status bar */}
-                <div
-                  className="glass flex items-center justify-between gap-4 px-5 py-3"
-                  style={{ borderRadius: "16px" }}
+                Recent Scans
+              </span>
+              {history.length > 0 && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto"
+                  style={{
+                    background: "rgba(129,140,248,0.12)",
+                    color: "#818cf8",
+                  }}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#ef4444" }} />
-                      <span className="relative inline-flex rounded-full h-3 w-3" style={{ background: "#ef4444" }} />
+                  {history.length}
+                </span>
+              )}
+            </div>
+
+            {/* History list */}
+            <div
+              className="flex-1 overflow-y-auto"
+              style={{ scrollbarWidth: "none" }}
+            >
+              <HistorySidebar
+                history={history}
+                activeId={activeHistoryId}
+                onSelect={handleSelectHistory}
+                onClear={handleClearHistory}
+              />
+            </div>
+          </div>
+        </aside>
+
+        {/* ── MAIN CONTENT ─────────────────────────────────── */}
+        <main
+          className="flex-1 h-full relative overflow-y-auto p-6 pb-12"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <div className="w-full mx-auto flex flex-col gap-5">
+
+            {/* Header */}
+            <header
+              className="flex items-center justify-between pb-4"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+            >
+              {/* Mobile: show logo */}
+              <div className="flex items-center gap-2 lg:hidden">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                    boxShadow: "0 4px 10px rgba(99,102,241,0.35)",
+                  }}
+                >
+                  <Shield className="w-4 h-4 text-white" />
+                </div>
+                <h1
+                  className="text-base font-bold"
+                  style={{ color: "#e2e8f0" }}
+                >
+                  RedFlag
+                </h1>
+              </div>
+
+              {/* Desktop: status strip */}
+              <div className="hidden lg:flex items-center gap-3">
+                {isLiveMonitor ? (
+                  <div className="flex items-center gap-2.5">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span
+                        className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                        style={{ background: "#ef4444" }}
+                      />
+                      <span
+                        className="relative inline-flex rounded-full h-2.5 w-2.5"
+                        style={{ background: "#ef4444" }}
+                      />
                     </span>
-                    <span className="text-sm font-semibold" style={{ color: "#1e293b" }}>LIVE — Monitoring target-site</span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-md" style={{ background: "rgba(0,0,0,0.05)", color: "#64748b" }}>localhost:4000</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-[12px]" style={{ color: "#64748b" }}>
-                    <span><span className="font-bold" style={{ color: "#1e293b" }}>{state.anomalies.length}</span> threats</span>
+                    <span
+                      className="text-sm font-bold tracking-wide"
+                      style={{ color: "#ef4444" }}
+                    >
+                      LIVE
+                    </span>
+                    <span
+                      className="text-[11px] font-mono px-2 py-0.5 rounded-md"
+                      style={{
+                        background: "rgba(30,41,59,0.8)",
+                        color: "#94a3b8",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                      }}
+                    >
+                      localhost:4000
+                    </span>
+                    <span
+                      className="text-sm font-mono px-3 py-1 rounded-full"
+                      style={{
+                        background: "rgba(239,68,68,0.1)",
+                        color: "#fb7185",
+                        border: "1px solid rgba(239,68,68,0.2)",
+                      }}
+                    >
+                      {state.anomalies.length} threats
+                    </span>
                     {state.alertsFired > 0 && (
-                      <span className="font-semibold px-2 py-0.5 rounded-full text-[11px]" style={{ background: "#fef2f2", color: "#dc2626" }}>
-                        🔔 {state.alertsFired} alert{state.alertsFired !== 1 ? "s" : ""} sent
+                      <span
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
+                        style={{
+                          background: "rgba(239,68,68,0.1)",
+                          color: "#ef4444",
+                          border: "1px solid rgba(239,68,68,0.2)",
+                        }}
+                      >
+                        <Bell className="w-3 h-3" />
+                        {state.alertsFired} alert
+                        {state.alertsFired !== 1 ? "s" : ""} sent
                       </span>
                     )}
                   </div>
-                </div>
-
-                {state.anomalies.length === 0 ? (
-                  <div className="glass flex flex-col items-center justify-center gap-3 py-16" style={{ borderRadius: "20px" }}>
-                    <div className="flex items-center gap-2" style={{ color: "#94a3b8" }}>
-                      <Radio className="w-5 h-5 animate-pulse" />
-                      <span className="text-sm font-medium">Watching for threats…</span>
-                    </div>
-                    <p className="text-[12px] text-center max-w-xs" style={{ color: "#cbd5e1" }}>
-                      Open <code className="font-mono text-violet-400">localhost:4000/simulate</code> and trigger an attack
-                    </p>
-                  </div>
                 ) : (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: "rgba(129,140,248,0.45)" }}
+                    />
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "#64748b" }}
+                    >
+                      {activeNav === "dashboard"
+                        ? "Dashboard"
+                        : activeNav === "upload"
+                        ? "Upload Logs"
+                        : activeNav === "monitor"
+                        ? "Live Monitor"
+                        : "History"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2">
+                {state.phase === "done" && (
                   <>
-                    <SeverityBar
-                      anomalies={state.anomalies}
-                      totalLogs={Math.max(state.anomalies.length * 5, 60)}
-                    />
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <MetricsChart result={{
-                        anomalies: state.anomalies,
-                        total_logs_parsed: Math.max(state.anomalies.length * 5, 60),
-                        total_anomalies: state.anomalies.length,
-                        rule_flagged: state.anomalies.filter((a) => a.threat_score > 0).length,
-                      }} />
-                      <ThreatMap anomalies={state.anomalies} />
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <AttackTimeline anomalies={state.anomalies} />
-                      <AnomalyList anomalies={state.anomalies} />
-                    </div>
-                    <AIBriefingCard
-                      briefing={state.briefing}
-                      streamingText={state.briefingChunks || undefined}
-                      isStreaming={state.briefingChunks.length > 0}
-                    />
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      onClick={() =>
+                        downloadPDFReport(
+                          state.result,
+                          state.briefing,
+                          currentLabelRef.current || "analysis"
+                        )
+                      }
+                      className="pill-ghost flex items-center gap-1.5"
+                      style={{ padding: "7px 14px", fontSize: "0.8rem" }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      PDF
+                    </motion.button>
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.05 }}
+                      onClick={() =>
+                        downloadBlocklist(
+                          state.result.anomalies,
+                          currentLabelRef.current || "analysis"
+                        )
+                      }
+                      className="pill-ghost flex items-center gap-1.5"
+                      style={{
+                        padding: "7px 14px",
+                        fontSize: "0.8rem",
+                        color: "#fb7185",
+                      }}
+                    >
+                      <ShieldOff className="w-3.5 h-3.5" />
+                      Blocklist
+                    </motion.button>
                   </>
                 )}
-              </motion.div>
-            )}
+                {isLiveMonitor && state.anomalies.length > 0 && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={() =>
+                      downloadBlocklist(state.anomalies, "live-monitor")
+                    }
+                    className="pill-ghost flex items-center gap-1.5"
+                    style={{
+                      padding: "7px 14px",
+                      fontSize: "0.8rem",
+                      color: "#fb7185",
+                    }}
+                  >
+                    <ShieldOff className="w-3.5 h-3.5" />
+                    Blocklist
+                  </motion.button>
+                )}
+                {(hasResults || isLiveMonitor) && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={isLiveMonitor ? handleStopMonitor : handleReset}
+                    className="pill-ghost flex items-center gap-1.5"
+                    style={{ padding: "7px 14px", fontSize: "0.8rem" }}
+                  >
+                    {isLiveMonitor ? (
+                      <>
+                        <WifiOff className="w-3.5 h-3.5" />
+                        Stop
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        New
+                      </>
+                    )}
+                  </motion.button>
+                )}
+                {/* Back to landing */}
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  onClick={() => setShowLanding(true)}
+                  className="pill-ghost"
+                  style={{ padding: "7px 11px", fontSize: "0.8rem" }}
+                  title="Back to home"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </motion.button>
+              </div>
+            </header>
 
-            {/* ── RESULTS ───────────────────────────────────── */}
-            {hasResults && result && (
-              <motion.div
-                key="results"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.4 }}
-                className="flex flex-col gap-4"
-              >
-                <SeverityBar anomalies={result.anomalies} totalLogs={result.total_logs_parsed} />
+            <AnimatePresence mode="wait">
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <MetricsChart result={result} />
-                  <ThreatMap anomalies={result.anomalies} />
-                </div>
+              {/* PROCESSING */}
+              {isProcessing && (
+                <motion.div
+                  key="scanning"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-center justify-center py-20"
+                >
+                  <ScanAnimation phase={state.phase as "uploading" | "analyzing"} />
+                </motion.div>
+              )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <AttackTimeline anomalies={result.anomalies} />
-                  <AnomalyList anomalies={result.anomalies} />
-                </div>
+              {/* ERROR */}
+              {state.phase === "error" && (
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col items-center justify-center gap-4 py-16"
+                >
+                  <div className="glass-critical p-8 rounded-[24px] text-center max-w-md">
+                    <h3
+                      className="text-lg font-semibold mb-2"
+                      style={{ color: "#fda4af" }}
+                    >
+                      Analysis Failed
+                    </h3>
+                    <p
+                      className="text-sm opacity-80"
+                      style={{ color: "#fda4af" }}
+                    >
+                      {state.message}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleReset}
+                    className="pill-ghost flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Try Again
+                  </button>
+                </motion.div>
+              )}
 
-                <AIBriefingCard
-                  briefing={state.phase === "done" ? state.briefing : null}
-                  streamingText={state.phase === "streaming_briefing" ? state.briefingChunks : undefined}
-                  isStreaming={state.phase === "streaming_briefing"}
-                />
-              </motion.div>
-            )}
+              {/* UPLOAD nav */}
+              {!isProcessing &&
+                state.phase !== "error" &&
+                activeNav === "upload" &&
+                !isLiveMonitor && (
+                  <motion.div
+                    key="upload"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -16 }}
+                    className="flex flex-col items-center justify-center gap-5 py-12"
+                  >
+                    <div className="text-center max-w-md">
+                      <h2
+                        className="text-xl font-bold"
+                        style={{ color: "#e2e8f0" }}
+                      >
+                        Upload Log Files
+                      </h2>
+                      <p
+                        className="text-sm mt-2 leading-relaxed"
+                        style={{ color: "#64748b" }}
+                      >
+                        Upload{" "}
+                        <code
+                          className="font-mono"
+                          style={{ color: "#818cf8" }}
+                        >
+                          .log
+                        </code>{" "}
+                        or{" "}
+                        <code
+                          className="font-mono"
+                          style={{ color: "#818cf8" }}
+                        >
+                          .txt
+                        </code>{" "}
+                        files. Isolation Forest ML detects anomalies; Gemini
+                        generates the executive briefing.
+                      </p>
+                    </div>
+                    <UploadZone onFileSelected={handleFileSelected} />
+                  </motion.div>
+                )}
+
+              {/* MONITOR nav — idle */}
+              {!isProcessing &&
+                state.phase !== "error" &&
+                activeNav === "monitor" &&
+                !isLiveMonitor && (
+                  <motion.div
+                    key="monitor-idle"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-center justify-center gap-5 py-16"
+                  >
+                    <div
+                      className="w-20 h-20 rounded-2xl flex items-center justify-center mb-2"
+                      style={{
+                        background: "rgba(99,102,241,0.1)",
+                        border: "1px solid rgba(129,140,248,0.2)",
+                      }}
+                    >
+                      <Radio
+                        className="w-8 h-8"
+                        style={{ color: "#818cf8" }}
+                      />
+                    </div>
+                    <div className="text-center max-w-sm">
+                      <h2
+                        className="text-xl font-bold mb-2"
+                        style={{ color: "#e2e8f0" }}
+                      >
+                        Live Monitor
+                      </h2>
+                      <p className="text-sm" style={{ color: "#64748b" }}>
+                        Watch the target site in real-time. Anomalies appear
+                        instantly as they happen on{" "}
+                        <code
+                          className="font-mono"
+                          style={{ color: "#818cf8" }}
+                        >
+                          localhost:4000
+                        </code>
+                        .
+                      </p>
+                    </div>
+                    <motion.button
+                      onClick={handleLiveMonitor}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="pill-primary flex items-center gap-2"
+                    >
+                      <Radio className="w-4 h-4" />
+                      Start Monitoring
+                    </motion.button>
+                  </motion.div>
+                )}
+
+              {/* LIVE MONITORING ACTIVE */}
+              {isLiveMonitor && state.phase === "live_monitoring" && (
+                <motion.div
+                  key="live"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col gap-4"
+                >
+                  {state.anomalies.length === 0 ? (
+                    <div
+                      className="glass flex flex-col items-center justify-center gap-3 py-16"
+                      style={{ borderRadius: "20px" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Radio
+                          className="w-5 h-5 animate-pulse"
+                          style={{ color: "#818cf8" }}
+                        />
+                        <span
+                          className="text-sm font-medium"
+                          style={{ color: "#94a3b8" }}
+                        >
+                          Watching for threats…
+                        </span>
+                      </div>
+                      <p
+                        className="text-[12px] text-center max-w-xs"
+                        style={{ color: "#64748b" }}
+                      >
+                        Open{" "}
+                        <code
+                          className="font-mono"
+                          style={{ color: "#818cf8" }}
+                        >
+                          localhost:4000/simulate
+                        </code>{" "}
+                        and trigger an attack
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <SeverityBar
+                        anomalies={state.anomalies}
+                        totalLogs={Math.max(state.anomalies.length * 5, 60)}
+                      />
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <MetricsChart
+                          result={{
+                            anomalies: state.anomalies,
+                            total_logs_parsed: Math.max(
+                              state.anomalies.length * 5,
+                              60
+                            ),
+                            total_anomalies: state.anomalies.length,
+                            rule_flagged: state.anomalies.filter(
+                              (a) => a.threat_score > 0
+                            ).length,
+                          }}
+                        />
+                        <ThreatMap anomalies={state.anomalies} />
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <AttackTimeline
+                          anomalies={state.anomalies}
+                          onIPClick={setSelectedIP}
+                        />
+                        <AnomalyList
+                          anomalies={state.anomalies}
+                          onIPClick={setSelectedIP}
+                        />
+                      </div>
+                      <AIBriefingCard
+                        briefing={state.briefing}
+                        streamingText={state.briefingChunks || undefined}
+                        isStreaming={state.briefingChunks.length > 0}
+                      />
+                      <FollowUpChat
+                        anomalies={state.anomalies}
+                        briefing={state.briefing}
+                      />
+                    </>
+                  )}
+                </motion.div>
+              )}
+
+              {/* RESULTS (dashboard nav or streaming) */}
+              {!isProcessing &&
+                state.phase !== "error" &&
+                !isLiveMonitor &&
+                hasResults &&
+                result &&
+                (activeNav === "dashboard" ||
+                  state.phase === "streaming_briefing") && (
+                  <motion.div
+                    key="results"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.4 }}
+                    className="flex flex-col gap-4"
+                  >
+                    <StatsCards result={result} />
+                    <SeverityBar
+                      anomalies={result.anomalies}
+                      totalLogs={result.total_logs_parsed}
+                    />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <MetricsChart result={result} />
+                      <ThreatMap anomalies={result.anomalies} />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <AttackTimeline
+                        anomalies={result.anomalies}
+                        onIPClick={setSelectedIP}
+                      />
+                      <AnomalyList
+                        anomalies={result.anomalies}
+                        onIPClick={setSelectedIP}
+                      />
+                    </div>
+                    <AIBriefingCard
+                      briefing={
+                        state.phase === "done" ? state.briefing : null
+                      }
+                      streamingText={
+                        state.phase === "streaming_briefing"
+                          ? state.briefingChunks
+                          : undefined
+                      }
+                      isStreaming={state.phase === "streaming_briefing"}
+                    />
+                    {state.phase === "done" && (
+                      <FollowUpChat
+                        anomalies={result.anomalies}
+                        briefing={state.briefing}
+                      />
+                    )}
+                  </motion.div>
+                )}
+
+              {/* DASHBOARD — no results */}
+              {!isProcessing &&
+                state.phase !== "error" &&
+                !isLiveMonitor &&
+                !hasResults &&
+                activeNav === "dashboard" && (
+                  <motion.div
+                    key="dashboard-empty"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-center justify-center gap-5 py-16"
+                  >
+                    <div
+                      className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                      style={{
+                        background: "rgba(99,102,241,0.08)",
+                        border: "1px solid rgba(129,140,248,0.15)",
+                      }}
+                    >
+                      <LayoutDashboard
+                        className="w-8 h-8"
+                        style={{ color: "#818cf8" }}
+                      />
+                    </div>
+                    <div className="text-center max-w-sm">
+                      <h2
+                        className="text-xl font-bold mb-2"
+                        style={{ color: "#e2e8f0" }}
+                      >
+                        No Analysis Yet
+                      </h2>
+                      <p
+                        className="text-sm mb-6"
+                        style={{ color: "#64748b" }}
+                      >
+                        Upload log files to start detecting anomalies and get
+                        AI-powered security insights.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActiveNav("upload")}
+                      className="pill-primary flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload Logs
+                    </button>
+                  </motion.div>
+                )}
+
+              {/* HISTORY nav — main area */}
+              {!isProcessing &&
+                state.phase !== "error" &&
+                activeNav === "history" && (
+                  <motion.div
+                    key="history-main"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col gap-3"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <h2
+                        className="text-base font-semibold"
+                        style={{ color: "#e2e8f0" }}
+                      >
+                        Scan History
+                      </h2>
+                      {history.length > 0 && (
+                        <button
+                          onClick={handleClearHistory}
+                          className="text-xs"
+                          style={{
+                            color: "#64748b",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+
+                    {history.length === 0 ? (
+                      <div
+                        className="glass flex flex-col items-center justify-center gap-3 py-16"
+                        style={{ borderRadius: "20px" }}
+                      >
+                        <History
+                          className="w-8 h-8 opacity-20"
+                          style={{ color: "#64748b" }}
+                        />
+                        <p
+                          className="text-sm"
+                          style={{ color: "#64748b" }}
+                        >
+                          No past scans found
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {history.map((entry) => {
+                          const isActive = entry.id === activeHistoryId;
+                          return (
+                            <motion.button
+                              key={entry.id}
+                              onClick={() => handleSelectHistory(entry)}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className="text-left stats-card"
+                              style={{
+                                border: isActive
+                                  ? "1px solid rgba(129,140,248,0.4)"
+                                  : undefined,
+                                boxShadow: isActive
+                                  ? "0 0 0 1px rgba(129,140,248,0.15)"
+                                  : undefined,
+                              }}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <Shield
+                                  className="w-4 h-4 shrink-0"
+                                  style={{
+                                    color: isActive ? "#818cf8" : "#64748b",
+                                  }}
+                                />
+                                <span
+                                  className="text-sm font-semibold truncate"
+                                  style={{ color: "#e2e8f0" }}
+                                >
+                                  {entry.label}
+                                </span>
+                              </div>
+                              <div
+                                className="text-xs font-mono mb-2"
+                                style={{ color: "#64748b" }}
+                              >
+                                {entry.totalLogs.toLocaleString()} logs ·{" "}
+                                {new Date(entry.timestamp).toLocaleString(
+                                  [],
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }
+                                )}
+                              </div>
+                              <div className="flex gap-1 flex-wrap">
+                                {(
+                                  [
+                                    "CRITICAL",
+                                    "HIGH",
+                                    "MEDIUM",
+                                    "LOW",
+                                  ] as Severity[]
+                                ).map((sev) => {
+                                  const count = entry.severityCounts[sev];
+                                  if (!count) return null;
+                                  const colors: Record<Severity, string> = {
+                                    CRITICAL: "#fb7185",
+                                    HIGH: "#fb923c",
+                                    MEDIUM: "#fbbf24",
+                                    LOW: "#2dd4bf",
+                                  };
+                                  return (
+                                    <span
+                                      key={sev}
+                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                                      style={{ background: colors[sev] }}
+                                    >
+                                      {count} {sev.slice(0, 4)}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
 
             </AnimatePresence>
           </div>
         </main>
-
-      </div>{/* end outer glass */}
+      </div>
     </div>
   );
 }

@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  ZoomableGroup,
+} from "react-simple-maps";
 import { Globe } from "lucide-react";
 import type { Anomaly } from "@/lib/types";
 
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const GEO_URL =
+  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 interface GeoLocation {
   ip: string;
@@ -18,17 +25,15 @@ interface GeoLocation {
   threat_type: string;
 }
 
-// Hardcoded fallback coords for well-known ranges (when API is unavailable)
 const FALLBACK_COORDS: Record<string, [number, number]> = {
-  "185.220.101.34": [13.4050, 52.5200],
+  "185.220.101.34": [13.405, 52.52],
   "91.240.118.222": [37.6173, 55.7558],
-  "45.33.32.156":   [-97.8220, 37.7510],
-  "72.14.192.5":    [-122.0553, 37.4193],
-  "72.21.198.66":   [-122.0553, 37.4193],
-  "95.173.136.70":  [37.6173, 55.7558],
+  "45.33.32.156": [-97.822, 37.751],
+  "72.14.192.5": [-122.0553, 37.4193],
+  "72.21.198.66": [-122.0553, 37.4193],
+  "95.173.136.70": [37.6173, 55.7558],
 };
 
-// Regex to extract any IP-like token from raw log text
 const IP_ANY_RE = /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g;
 
 function isValidPublicIP(ip: string): boolean {
@@ -47,7 +52,6 @@ function isPrivate(ip: string) {
   );
 }
 
-// Deterministic fallback so every public IP gets a plausible position
 function defaultCoords(ip: string): [number, number] {
   const p = ip.split(".").map(Number);
   const lon = (((p[0] * 97 + p[1] * 31) % 3600) / 10) - 180;
@@ -59,15 +63,15 @@ type SeverityKey = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 const SEV_COLORS: Record<SeverityKey, string> = {
   CRITICAL: "#fb7185",
-  HIGH:     "#fb923c",
-  MEDIUM:   "#fbbf24",
-  LOW:      "#2dd4bf",
+  HIGH: "#fb923c",
+  MEDIUM: "#fbbf24",
+  LOW: "#2dd4bf",
 };
 
-/** Extract every unique public IP from parsed_log.ip AND the raw text of all anomalies. */
-function extractAllIPs(anomalies: Anomaly[]): Map<string, { threat: string; severity: SeverityKey }> {
+function extractAllIPs(
+  anomalies: Anomaly[]
+): Map<string, { threat: string; severity: SeverityKey }> {
   const ipMap = new Map<string, { threat: string; severity: SeverityKey }>();
-
   for (const a of anomalies) {
     const val = { threat: a.threat_type, severity: a.severity as SeverityKey };
     if (a.parsed_log.ip && isValidPublicIP(a.parsed_log.ip)) {
@@ -79,16 +83,19 @@ function extractAllIPs(anomalies: Anomaly[]): Map<string, { threat: string; seve
       if (isValidPublicIP(ip) && !ipMap.has(ip)) ipMap.set(ip, val);
     }
   }
-
-  console.log(`[ThreatMap] IPs extracted: ${ipMap.size}`, [...ipMap.keys()]);
   return ipMap;
 }
 
-async function geolocateIPs(ipToThreat: Map<string, string>): Promise<GeoLocation[]> {
+async function geolocateIPs(
+  ipToThreat: Map<string, string>
+): Promise<GeoLocation[]> {
   const unique = [...ipToThreat.keys()];
   if (unique.length === 0) return [];
 
-  let geoResults: Map<string, { lat: number; lon: number; city: string; country: string; isp: string }> = new Map();
+  const geoResults = new Map<
+    string,
+    { lat: number; lon: number; city: string; country: string; isp: string }
+  >();
 
   try {
     const res = await fetch(
@@ -100,28 +107,54 @@ async function geolocateIPs(ipToThreat: Map<string, string>): Promise<GeoLocatio
       }
     );
     if (res.ok) {
-      const data: { status: string; query: string; lat: number; lon: number; city: string; country: string; isp: string }[] = await res.json();
+      const data: {
+        status: string;
+        query: string;
+        lat: number;
+        lon: number;
+        city: string;
+        country: string;
+        isp: string;
+      }[] = await res.json();
       for (const d of data) {
         if (d.status === "success") {
-          geoResults.set(d.query, { lat: d.lat, lon: d.lon, city: d.city, country: d.country, isp: d.isp });
+          geoResults.set(d.query, {
+            lat: d.lat,
+            lon: d.lon,
+            city: d.city,
+            country: d.country,
+            isp: d.isp,
+          });
         }
       }
     }
-  } catch { /* API unavailable — fall through to fallbacks */ }
+  } catch { /* API unavailable — fall through */ }
 
-  // Build final list — never drop an IP, always fall back
-  const locations: GeoLocation[] = unique.map((ip) => {
+  return unique.map((ip) => {
     const geo = geoResults.get(ip);
     if (geo) {
-      return { ip, lat: geo.lat, lon: geo.lon, city: geo.city, country: geo.country, isp: geo.isp, threat_type: ipToThreat.get(ip) ?? "UNKNOWN" };
+      return {
+        ip,
+        lat: geo.lat,
+        lon: geo.lon,
+        city: geo.city,
+        country: geo.country,
+        isp: geo.isp,
+        threat_type: ipToThreat.get(ip) ?? "UNKNOWN",
+      };
     }
     const fallback = FALLBACK_COORDS[ip];
     const [lon, lat] = fallback ?? defaultCoords(ip);
-    return { ip, lat, lon, city: "Unknown", country: "Unknown", isp: "", threat_type: ipToThreat.get(ip) ?? "UNKNOWN" };
+    return {
+      ip,
+      lat,
+      lon,
+      city: "Unknown",
+      country: "Unknown",
+      isp: "",
+      threat_type: ipToThreat.get(ip) ?? "UNKNOWN",
+    };
   });
-
-  console.log(`[ThreatMap] IPs plotted: ${locations.length}`, locations.map((l) => `${l.ip} (${l.lat.toFixed(1)},${l.lon.toFixed(1)})`));
-  return locations;
 }
 
 interface ThreatMapProps {
@@ -146,21 +179,40 @@ export function ThreatMap({ anomalies }: ThreatMapProps) {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 200, damping: 22, delay: 0.15 }}
+      transition={{
+        type: "spring",
+        stiffness: 200,
+        damping: 22,
+        delay: 0.15,
+      }}
       className="glass"
       style={{ padding: "1.25rem" }}
     >
-      <div className="flex items-center justify-between pb-3 mb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.35)" }}>
-        <h2 className="text-sm uppercase font-semibold tracking-wider flex items-center gap-2" style={{ color: "#1e293b" }}>
-          <Globe className="w-4 h-4 text-violet-500" />
+      <div
+        className="flex items-center justify-between pb-3 mb-3"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <h2
+          className="text-sm uppercase font-semibold tracking-wider flex items-center gap-2"
+          style={{ color: "#e2e8f0" }}
+        >
+          <Globe className="w-4 h-4" style={{ color: "#818cf8" }} />
           Threat Origin Map
         </h2>
-        <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>
+        <span className="text-xs font-mono" style={{ color: "#64748b" }}>
           {loading ? "Geolocating..." : `${locations.length} IPs mapped`}
         </span>
       </div>
 
-      <div style={{ position: "relative", background: "rgba(255,255,255,0.1)", borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.25)" }}>
+      <div
+        style={{
+          position: "relative",
+          background: "rgba(15,23,42,0.6)",
+          borderRadius: "14px",
+          overflow: "hidden",
+          border: "1px solid rgba(129,140,248,0.1)",
+        }}
+      >
         <ComposableMap
           projection="geoNaturalEarth1"
           style={{ width: "100%", height: "auto" }}
@@ -173,8 +225,16 @@ export function ThreatMap({ anomalies }: ThreatMapProps) {
                     key={geo.rsmKey}
                     geography={geo}
                     style={{
-                      default: { fill: "rgba(139,92,246,0.12)", stroke: "rgba(255,255,255,0.3)", strokeWidth: 0.4, outline: "none" },
-                      hover: { fill: "rgba(139,92,246,0.22)", outline: "none" },
+                      default: {
+                        fill: "rgba(129,140,248,0.1)",
+                        stroke: "rgba(129,140,248,0.2)",
+                        strokeWidth: 0.4,
+                        outline: "none",
+                      },
+                      hover: {
+                        fill: "rgba(129,140,248,0.2)",
+                        outline: "none",
+                      },
                       pressed: { outline: "none" },
                     }}
                   />
@@ -182,28 +242,46 @@ export function ThreatMap({ anomalies }: ThreatMapProps) {
               }
             </Geographies>
 
-            {locations.map((loc, i) => (
-              <Marker
-                key={i}
-                coordinates={[loc.lon, loc.lat]}
-                onMouseEnter={() => setTooltip(loc)}
-                onMouseLeave={() => setTooltip(null)}
-              >
-                {/* Pulsing ring */}
-                <circle r={8} fill="rgba(251,113,133,0.15)" stroke="none">
-                  <animate attributeName="r" values="6;14;6" dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
-                </circle>
-                {/* Core dot */}
-                <circle
-                  r={5}
-                  fill="#fb7185"
-                  stroke="rgba(255,255,255,0.2)"
-                  strokeWidth={1.5}
-                  style={{ cursor: "pointer", filter: "drop-shadow(0 0 4px rgba(251,113,133,0.6))" }}
-                />
-              </Marker>
-            ))}
+            {locations.map((loc, i) => {
+              const ipMeta = extractAllIPs(anomalies).get(loc.ip);
+              const dotColor = ipMeta
+                ? SEV_COLORS[ipMeta.severity]
+                : "#fb7185";
+
+              return (
+                <Marker
+                  key={i}
+                  coordinates={[loc.lon, loc.lat]}
+                  onMouseEnter={() => setTooltip(loc)}
+                  onMouseLeave={() => setTooltip(null)}
+                >
+                  <circle r={8} fill={`${dotColor}20`} stroke="none">
+                    <animate
+                      attributeName="r"
+                      values="6;14;6"
+                      dur="2s"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      values="0.6;0;0.6"
+                      dur="2s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                  <circle
+                    r={5}
+                    fill={dotColor}
+                    stroke="rgba(255,255,255,0.15)"
+                    strokeWidth={1.5}
+                    style={{
+                      cursor: "pointer",
+                      filter: `drop-shadow(0 0 4px ${dotColor}99)`,
+                    }}
+                  />
+                </Marker>
+              );
+            })}
           </ZoomableGroup>
         </ComposableMap>
 
@@ -214,21 +292,30 @@ export function ThreatMap({ anomalies }: ThreatMapProps) {
               position: "absolute",
               bottom: "12px",
               left: "12px",
-              background: "rgba(255,255,255,0.05)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              border: "1.5px solid rgba(255,255,255,0.05)",
+              background: "rgba(15,23,42,0.95)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              border: "1px solid rgba(129,140,248,0.2)",
               borderRadius: "12px",
               padding: "10px 14px",
               fontSize: "12px",
-              color: "#3a3632",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 2px rgba(255,255,255,0.2)",
+              color: "#e2e8f0",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
               pointerEvents: "none",
             }}
           >
             <p className="font-bold">{tooltip.ip}</p>
-            <p style={{ color: "#64748b" }}>{tooltip.city}, {tooltip.country}</p>
-            <p style={{ color: "#fb7185", fontSize: "10px", fontFamily: "monospace", marginTop: "2px" }}>
+            <p style={{ color: "#94a3b8" }}>
+              {tooltip.city}, {tooltip.country}
+            </p>
+            <p
+              style={{
+                color: "#fb7185",
+                fontSize: "10px",
+                fontFamily: "monospace",
+                marginTop: "2px",
+              }}
+            >
               {String(tooltip.threat_type ?? "UNKNOWN").replace(/_/g, " ")}
             </p>
           </div>

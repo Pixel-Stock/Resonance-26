@@ -135,37 +135,204 @@ def send_email_alert(anomaly: Anomaly) -> None:
     print(f"[alerts] Email sent -> {ALERT_TO}")
 
 
-def send_telegram_alert(anomaly: Anomaly) -> None:
+_THREAT_DIAGNOSTIC = {
+    "BRUTE_FORCE": (
+        "Automated tooling is systematically trying username+password combos against SSH (port 22). "
+        "Every 'Failed password' line = one attempt. "
+        "High rate = dictionary or credential-stuffing campaign."
+    ),
+    "ACCOUNT_COMPROMISE": (
+        "Brute-force succeeded — the attacker obtained working credentials. "
+        "All actions by this account going forward are attacker-controlled. "
+        "Audit authorized_keys, crontabs, and sudo rules immediately."
+    ),
+    "LATERAL_MOVEMENT": (
+        "One account is authenticating to multiple internal hosts in rapid succession. "
+        "Post-compromise spreading via SSH — the attacker is using stolen creds to pivot "
+        "to other machines on your network."
+    ),
+    "PERSISTENCE": (
+        "A cron job was planted in /tmp or /var/tmp (world-writable, survives reboots). "
+        "An auto-executing backdoor script is now scheduled. "
+        "Check: crontab -l for all users, /etc/cron.d/, /var/spool/cron/"
+    ),
+    "EXTERNAL_ACCESS": (
+        "A public internet IP authenticated to your SSH service. "
+        "If this IP is a VPN/Tor exit node or unknown datacenter, treat as unauthorized access. "
+        "Review 'last', 'who', and .bash_history for this session."
+    ),
+    "PRIVILEGE_ESCALATION": (
+        "Sudo was used to spawn a root shell (/bin/bash or /bin/sh as root). "
+        "The attacker now has full system administrator access — they can disable logging, "
+        "add backdoor accounts, install rootkits, and read /etc/shadow."
+    ),
+    "SYSTEM_TAMPERING": (
+        "A network interface was placed in promiscuous mode. "
+        "Packet capture software (Wireshark/tcpdump) is actively running. "
+        "ALL unencrypted network traffic — passwords, tokens, API keys — is being recorded."
+    ),
+    "UNKNOWN": (
+        "Isolation Forest ML model flagged this as a statistical outlier. "
+        "No specific SIEM rule matched, but behaviour patterns are abnormal. "
+        "Correlate with other events from the same IP or user."
+    ),
+}
+
+_THREAT_ACTIONS = {
+    "BRUTE_FORCE": [
+        "ufw deny from {ip} to any",
+        "fail2ban-client status sshd",
+        "grep 'Accepted' /var/log/auth.log | grep {ip}",
+    ],
+    "ACCOUNT_COMPROMISE": [
+        "passwd -l {user}   # lock the account immediately",
+        "grep {user} /var/log/auth.log | tail -50",
+        "cat /var/spool/cron/{user}  # check for planted cron",
+    ],
+    "LATERAL_MOVEMENT": [
+        "who   # who is currently logged in",
+        "last -20   # recent login history",
+        "netstat -tnp | grep ssh",
+    ],
+    "PERSISTENCE": [
+        "crontab -l -u {user}",
+        "ls -la /tmp /var/tmp",
+        "find /tmp /var/tmp -type f -newer /etc/passwd",
+    ],
+    "EXTERNAL_ACCESS": [
+        "last -20   # check recent logins",
+        "grep {ip} /var/log/auth.log | tail -30",
+        "ufw deny from {ip}",
+    ],
+    "PRIVILEGE_ESCALATION": [
+        "grep sudo /var/log/auth.log | tail -20",
+        "who   # check active root sessions",
+        "auditctl -l   # check if auditd is running",
+    ],
+    "SYSTEM_TAMPERING": [
+        "ip link show   # check promiscuous flag",
+        "ps aux | grep -E 'tcpdump|wireshark|tshark'",
+        "lsof -i   # check open network connections",
+    ],
+    "UNKNOWN": [
+        "grep {ip} /var/log/auth.log | tail -20",
+        "last | grep {user}",
+        "journalctl -u ssh --since '1 hour ago'",
+    ],
+}
+
+
+def _is_vpn_ip(isp: str) -> str | None:
+    """Return a VPN/proxy label if the ISP name suggests an anonymisation service."""
+    if not isp:
+        return None
+    isp_lower = isp.lower()
+    checks = [
+        ("tor", "Tor Exit Node"),
+        ("nordvpn", "NordVPN"),
+        ("mullvad", "Mullvad VPN"),
+        ("protonvpn", "ProtonVPN"),
+        ("expressvpn", "ExpressVPN"),
+        ("surfshark", "Surfshark VPN"),
+        ("ipvanish", "IPVanish"),
+        ("pia", "PIA VPN"),
+        ("privateinternetaccess", "PIA VPN"),
+        ("hetzner", "Hetzner (VPN Host)"),
+        ("vultr", "Vultr (VPN Host)"),
+        ("linode", "Linode (VPN Host)"),
+        ("digitalocean", "DigitalOcean (VPN Host)"),
+        ("ovh", "OVH (VPN Host)"),
+        ("datacenter", "Datacenter / VPN Host"),
+        ("anonymous", "Anonymous Proxy"),
+        ("vpn", "VPN Service"),
+    ]
+    for keyword, label in checks:
+        if keyword in isp_lower:
+            return label
+    return None
+
+
+def _fmt_timestamp(ts) -> str:
+    """Format a datetime or ISO string as: Apr 16, 2025 — 18:22:28"""
+    try:
+        from datetime import datetime
+        if hasattr(ts, "strftime"):
+            return ts.strftime("%b %d, %Y — %H:%M:%S")
+        s = str(ts)[:19].replace("T", " ")
+        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%b %d, %Y — %H:%M:%S")
+    except Exception:
+        return str(ts)[:19]
+
+
+def _confidence_label(score: float) -> str:
+    if score <= -0.1:
+        return "High Confidence"
+    if score <= 0:
+        return "Medium Confidence"
+    return "Low Confidence"
+
+
+def send_telegram_alert(anomaly: Anomaly, isp: str = "") -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("[alerts] Telegram skipped — credentials not configured")
         return
 
-    emoji = _SEVERITY_EMOJI.get(anomaly.severity, "⚪")
-    ip = anomaly.parsed_log.ip or "unknown"
-    action = anomaly.parsed_log.action or "unknown"
-    user = anomaly.parsed_log.user or "-"
+    severity = anomaly.severity.value if hasattr(anomaly.severity, "value") else str(anomaly.severity)
+    threat_type = anomaly.threat_type.value if hasattr(anomaly.threat_type, "value") else str(anomaly.threat_type)
+    threat_label = threat_type.replace("_", " ").title()
+
+    emoji = _SEVERITY_EMOJI.get(severity, "⚪")
+    ip     = anomaly.parsed_log.ip or "unknown"
+    user   = anomaly.parsed_log.user or "—"
+    host   = getattr(anomaly.parsed_log, "host", None) or "—"
+    action = anomaly.parsed_log.action or "—"
+    action_label = action.replace("_", " ").title()
+    ts_str = _fmt_timestamp(anomaly.parsed_log.timestamp)
+    confidence = _confidence_label(anomaly.composite_score)
+
+    # VPN detection
+    vpn_label = _is_vpn_ip(isp)
+    ip_display = f"{ip}  🔒 ({vpn_label})" if vpn_label else ip
+
+    # Risk score display
+    risk_score = f"{anomaly.composite_score:.3f} ({confidence})"
+
+    # Raw log — first 2 lines, indented
+    raw_lines = anomaly.parsed_log.raw.strip().splitlines()[:2]
+    raw_display = "\n".join(f"  {ln}" for ln in raw_lines)
 
     text = (
-        f"{emoji} *THREAT DETECTED* — Log Sentinel\n\n"
-        f"*Severity:* `{anomaly.severity}`\n"
-        f"*Type:* `{anomaly.threat_type}`\n"
-        f"*Source IP:* `{ip}`\n"
-        f"*User:* `{user}`\n"
-        f"*Action:* `{action}`\n"
-        f"*Score:* `{anomaly.composite_score:.3f}`\n\n"
-        f"```\n{anomaly.parsed_log.raw[:200]}\n```"
+        f"🚨 THREAT DETECTED — Log Sentinel\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{emoji} Severity   : {severity}\n"
+        f"⚡ Type       : {threat_label}\n"
+        f"📅 Time       : {ts_str}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🖥️  Host      : {host}\n"
+        f"🌐 Source IP  : {ip_display}\n"
+        f"👤 User       : {user}\n"
+        f"❌ Action     : {action_label}\n"
+        f"🎯 Risk Score : {risk_score}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📋 Raw Log:\n{raw_display}\n"
     )
 
     payload = json.dumps({
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        "parse_mode": "Markdown",
-    }).encode()
+        "parse_mode": None,  # plain text — matches template exactly
+    })
+    # Remove null parse_mode
+    payload_dict = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+    }
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     req = urllib.request.Request(
         url,
-        data=payload,
+        data=json.dumps(payload_dict).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )

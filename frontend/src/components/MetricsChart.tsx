@@ -68,12 +68,18 @@ export function MetricsChart({ result }: MetricsChartProps) {
       className="glass"
       style={{ padding: "1.25rem" }}
     >
-      <div className="flex items-center justify-between pb-3 mb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.35)" }}>
-        <h2 className="text-sm uppercase font-semibold tracking-wider flex items-center gap-2" style={{ color: "#1e293b" }}>
-          <Activity className="w-4 h-4 text-violet-500" />
+      <div
+        className="flex items-center justify-between pb-3 mb-4"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <h2
+          className="text-sm uppercase font-semibold tracking-wider flex items-center gap-2"
+          style={{ color: "#e2e8f0" }}
+        >
+          <Activity className="w-4 h-4" style={{ color: "#818cf8" }} />
           Event Timeline
         </h2>
-        <div className="flex gap-4 text-[10px] font-mono" style={{ color: "#94a3b8" }}>
+        <div className="flex gap-4 text-[10px] font-mono" style={{ color: "#64748b" }}>
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full" style={{ background: "linear-gradient(135deg, #5eead4, #14b8a6)" }} />
             Events
@@ -90,30 +96,31 @@ export function MetricsChart({ result }: MetricsChartProps) {
           <AreaChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="eventGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#5eead4" stopOpacity={0.35} />
+                <stop offset="5%" stopColor="#5eead4" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#5eead4" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
               dataKey="time"
-              tick={{ fontSize: 10, fill: "#94a3b8" }}
+              tick={{ fontSize: 10, fill: "#64748b" }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "#94a3b8" }}
+              tick={{ fontSize: 10, fill: "#64748b" }}
               axisLine={false}
               tickLine={false}
             />
             <Tooltip
               contentStyle={{
-                background: "rgba(255,255,255,0.05)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                border: "1.5px solid rgba(255,255,255,0.5)",
-                borderRadius: "14px",
+                background: "rgba(15,23,42,0.92)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: "1px solid rgba(129,140,248,0.2)",
+                borderRadius: "12px",
                 fontSize: "12px",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.06), inset 0 1px 2px rgba(255,255,255,0.05)",
+                color: "#e2e8f0",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
               }}
             />
             <Area
@@ -130,7 +137,7 @@ export function MetricsChart({ result }: MetricsChartProps) {
                 y={point.events}
                 r={6}
                 fill="#fb7185"
-                stroke="rgba(255,255,255,0.2)"
+                stroke="rgba(255,255,255,0.15)"
                 strokeWidth={2}
               />
             ))}
@@ -138,20 +145,30 @@ export function MetricsChart({ result }: MetricsChartProps) {
         </ResponsiveContainer>
       </div>
 
-      {/* Stats row — glass-embossed numbers */}
-      <div className="flex gap-4 mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.35)" }}>
+      {/* Stats row */}
+      <div
+        className="flex gap-4 mt-4 pt-3"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+      >
         {[
-          { value: result.total_logs_parsed, label: "Logs Parsed", color: "#1e293b" },
-          { value: result.total_anomalies, label: "Anomalies", color: "#e11d48" },
+          { value: result.total_logs_parsed, label: "Logs Parsed", color: "#e2e8f0" },
+          { value: result.total_anomalies, label: "Anomalies", color: "#fb7185" },
           {
             value: `${((1 - result.total_anomalies / Math.max(result.total_logs_parsed, 1)) * 100).toFixed(1)}%`,
             label: "Clean Rate",
-            color: "#0d9488",
+            color: "#2dd4bf",
           },
         ].map((stat) => (
           <div key={stat.label} className="flex-1 text-center">
-            <p className="text-lg font-bold" style={{ color: stat.color }}>{stat.value}</p>
-            <p className="text-[10px] uppercase tracking-wider font-medium" style={{ color: "#94a3b8" }}>{stat.label}</p>
+            <p className="text-lg font-bold" style={{ color: stat.color }}>
+              {stat.value}
+            </p>
+            <p
+              className="text-[10px] uppercase tracking-wider font-medium"
+              style={{ color: "#64748b" }}
+            >
+              {stat.label}
+            </p>
           </div>
         ))}
       </div>
