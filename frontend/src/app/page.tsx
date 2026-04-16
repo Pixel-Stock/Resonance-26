@@ -2,7 +2,9 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { RotateCcw, Radio, Shield, WifiOff } from "lucide-react";
+import { RotateCcw, Radio, Shield, WifiOff, Download, LogOut } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { downloadPDFReport } from "@/lib/generateReport";
 
 import { UploadZone } from "@/components/UploadZone";
 import { ScanAnimation } from "@/components/ScanAnimation";
@@ -246,17 +248,21 @@ export default function Home() {
     try { localStorage.removeItem("log_sentinel_history"); } catch { /* ignore */ }
   }, []);
 
+  const { data: session } = useSession();
+
   const isProcessing    = state.phase === "uploading" || state.phase === "analyzing";
   const hasResults      = state.phase === "streaming_briefing" || state.phase === "done";
   const isLiveMonitor   = state.phase === "live_monitoring";
   const result          = hasResults ? state.result : null;
 
   return (
-    <div className="flex w-full h-screen overflow-hidden z-10 relative bg-transparent font-sans">
+    <div className="flex w-full h-screen p-4 md:p-6 lg:p-8 font-sans items-center justify-center overflow-hidden">
+      {/* ── OUTER GLASS RECTANGLE ─────────────────────────── */}
+      <div className="glass-outer w-full max-w-[1700px] h-full flex overflow-hidden">
 
-      {/* ── LEFT SIDEBAR (history) ───────────────────────────── */}
-      <aside className="w-[320px] flex-shrink-0 h-full p-4 lg:p-6 hidden lg:flex flex-col">
-        <div className="glass w-full h-full flex flex-col overflow-hidden relative">
+        {/* ── LEFT SIDEBAR ─────────────────────────────────── */}
+        <aside className="w-[300px] flex-shrink-0 h-full hidden lg:flex flex-col" style={{ borderRight: '1px solid rgba(255,255,255,0.2)' }}>
+          <div className="w-full h-full flex flex-col overflow-hidden relative p-6">
           {/* Logo lockup */}
           <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.25)" }}>
             <div className="flex items-center gap-3 mb-1">
@@ -278,6 +284,45 @@ export default function Home() {
             </p>
           </div>
 
+          {/* User info */}
+          <div
+            className="flex items-center gap-3 px-4 py-3"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.2)", borderTop: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            {session?.user?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={session.user.image}
+                alt=""
+                className="w-8 h-8 rounded-full flex-shrink-0"
+                style={{ border: "1.5px solid rgba(255,255,255,0.5)" }}
+              />
+            ) : (
+              <div
+                className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                style={{ background: "linear-gradient(135deg, #a78bfa, #7c3aed)" }}
+              >
+                {session?.user?.name?.[0]?.toUpperCase() ?? "?"}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-semibold truncate" style={{ color: "#1e293b" }}>
+                {session?.user?.name ?? "User"}
+              </p>
+              <p className="text-[10px] truncate" style={{ color: "#94a3b8" }}>
+                {session?.user?.email ?? ""}
+              </p>
+            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+              title="Sign out"
+              className="flex-shrink-0"
+              style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", color: "#94a3b8", lineHeight: 1 }}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* History list */}
           <div className="flex-1 overflow-y-auto px-4 py-2 mt-2">
             <HistorySidebar
@@ -288,11 +333,11 @@ export default function Home() {
             />
           </div>
         </div>
-      </aside>
+        </aside>
 
-      {/* ── MAIN CONTENT ────────────────────────────────────── */}
-      <main className="flex-1 h-full overflow-y-auto relative p-4 sm:p-6">
-        <div className="max-w-[1400px] mx-auto flex flex-col gap-6">
+        {/* ── MAIN CONTENT ──────────────────────────────────── */}
+        <main className="flex-1 h-full relative overflow-y-auto p-6 pb-12" style={{scrollbarWidth: 'none'}}>
+          <div className="w-full mx-auto flex flex-col gap-6">
 
           {/* Header */}
           <header className="flex items-center justify-between pb-4">
@@ -314,21 +359,41 @@ export default function Home() {
             {/* Desktop: just a spacer to push reset btn right */}
             <div className="hidden lg:block" />
 
-            {(hasResults || isLiveMonitor) && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={isLiveMonitor ? handleStopMonitor : handleReset}
-                className="pill-ghost flex items-center gap-2"
-                style={{ padding: "8px 20px", fontSize: "0.85rem" }}
-              >
-                {isLiveMonitor ? (
-                  <><WifiOff className="w-4 h-4" /> Stop Monitor</>
-                ) : (
-                  <><RotateCcw className="w-4 h-4" /> New Analysis</>
-                )}
-              </motion.button>
-            )}
+            <div className="flex items-center gap-2">
+              {state.phase === "done" && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={() =>
+                    downloadPDFReport(
+                      state.result,
+                      state.briefing,
+                      currentLabelRef.current || "analysis"
+                    )
+                  }
+                  className="pill-ghost flex items-center gap-2"
+                  style={{ padding: "8px 20px", fontSize: "0.85rem" }}
+                >
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </motion.button>
+              )}
+              {(hasResults || isLiveMonitor) && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={isLiveMonitor ? handleStopMonitor : handleReset}
+                  className="pill-ghost flex items-center gap-2"
+                  style={{ padding: "8px 20px", fontSize: "0.85rem" }}
+                >
+                  {isLiveMonitor ? (
+                    <><WifiOff className="w-4 h-4" /> Stop Monitor</>
+                  ) : (
+                    <><RotateCcw className="w-4 h-4" /> New Analysis</>
+                  )}
+                </motion.button>
+              )}
+            </div>
           </header>
 
           <AnimatePresence mode="wait">
@@ -366,12 +431,11 @@ export default function Home() {
                     className="inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full transition-all duration-200"
                     style={{
                       padding: "5px 14px",
-                      background: "rgba(255,255,255,0.5)",
-                      border: "1px solid rgba(255,255,255,0.7)",
-                      borderBottom: "2px solid rgba(255,255,255,0.95)",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.06), inset 0 1px 2px rgba(255,255,255,0.9)",
+                      background: "rgba(255,255,255,0.45)",
+                      border: "1px solid rgba(255,255,255,0.65)",
+                      borderTop: "1px solid rgba(255,255,255,0.92)",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.88)",
                       color: "#475569",
-                      backdropFilter: "blur(16px)",
                     }}
                   >
                     <Radio className="w-2.5 h-2.5 text-violet-500" />
@@ -514,10 +578,11 @@ export default function Home() {
               </motion.div>
             )}
 
-          </AnimatePresence>
-        </div>
-      </main>
+            </AnimatePresence>
+          </div>
+        </main>
 
+      </div>{/* end outer glass */}
     </div>
   );
 }

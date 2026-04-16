@@ -19,19 +19,19 @@
 }
 
 :root {
-  --background: #d5ccc3;
-  --foreground: #3a3632;
-  --border: rgba(255, 255, 255, 0.5);
-  --input: rgba(255, 255, 255, 0.4);
+  --background: #f0eeeb;
+  --foreground: #1e293b;
+  --border: rgba(255, 255, 255, 0.18);
+  --input: rgba(255, 255, 255, 0.25);
   --ring: #a78bfa;
   --radius: 24px;
 }
 
 .dark {
-  --background: #d5ccc3;
-  --foreground: #3a3632;
-  --border: rgba(255, 255, 255, 0.5);
-  --input: rgba(255, 255, 255, 0.4);
+  --background: #f0eeeb;
+  --foreground: #1e293b;
+  --border: rgba(255, 255, 255, 0.18);
+  --input: rgba(255, 255, 255, 0.25);
   --ring: #a78bfa;
 }
 
@@ -51,131 +51,119 @@
 
 /*
  * ═══════════════════════════════════════════
- *  PRISTINE LIQUID GLASS DESIGN SYSTEM
+ *  CLEAR GLASS DESIGN SYSTEM (DASHBOARD)
+ *  No blur. No fills. Light catches only at edges.
  * ═══════════════════════════════════════════
  */
 
-:root {
-  --background: #f1f5f9;
-  --foreground: #171717;
-}
-
 body {
-  color: var(--foreground);
-  background: radial-gradient(circle at top, #ffffff 0%, #f1f5f9 100%);
-  font-family: Arial, Helvetica, sans-serif;
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  background: #f0eeeb;
+  color: #1e293b;
 }
 
-/* Core glass panel — ultra-clean with glowing bottom reflection */
-.glass {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.2) 100%
-  );
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border: 1.5px solid rgba(255, 255, 255, 0.6);
-  border-bottom: 3px solid rgba(255, 255, 255, 0.95); /* Reflected light underneath */
-  border-radius: 32px;
-  box-shadow:
-    0 24px 48px rgba(0, 0, 0, 0.08),  /* Huge drop shadow for 3D lift */
-    0 12px 24px rgba(0, 0, 0, 0.06),
-    inset 0 4px 6px rgba(255, 255, 255, 0.9), /* Extreme top highlight */
-    inset 0 -8px 24px rgba(255, 255, 255, 0.7); /* Inner bottom glow */
-  color: #333333;
-}
-
-/* Severity-tinted glass */
-.glass-critical {
-  background: linear-gradient(135deg, rgba(255, 228, 230, 0.5) 0%, rgba(254, 205, 211, 0.3) 100%);
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border: 1.5px solid rgba(254, 205, 211, 0.7);
-  border-bottom: 3px solid rgba(255, 228, 230, 0.95);
+/*
+ * OUTER GLASS PANEL — the single large floating rectangle.
+ * Fully transparent. Glass identity comes from edges + shadow only.
+ * Top/left borders = bright white (light catching the glass edge).
+ * Bottom/right borders = subtle dark (shadow side of the glass).
+ * Box-shadow: large soft float shadow + top inset bevel/refraction highlight.
+ */
+.glass-outer {
+  background: transparent;
   border-radius: 24px;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.92);
+  border-left: 1.5px solid rgba(255, 255, 255, 0.78);
+  border-right: 1.5px solid rgba(0, 0, 0, 0.07);
+  border-bottom: 1.5px solid rgba(0, 0, 0, 0.10);
   box-shadow:
-    0 24px 48px rgba(225, 29, 72, 0.08),
-    0 12px 24px rgba(225, 29, 72, 0.06),
-    inset 0 4px 6px rgba(255, 255, 255, 0.9),
-    inset 0 -8px 24px rgba(255, 228, 230, 0.8);
+    0 40px 100px rgba(0, 0, 0, 0.13),
+    0 12px 32px rgba(0, 0, 0, 0.07),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.88);
+  color: #1e293b;
+  position: relative;
+}
+
+/*
+ * INNER COMPONENT CARDS — smaller panes inside the outer glass sheet.
+ * Even more transparent — defined only by thin edge lines.
+ * The inset top highlight gives a subtle bevel to mark the pane boundary.
+ */
+.glass {
+  background: transparent;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.30);
+  border-left-color: rgba(255, 255, 255, 0.20);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #1e293b;
+  position: relative;
+}
+
+/* Sub-containers nested inside cards — even lighter edge only */
+.glass-sub {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.24);
+  border-radius: 12px;
+}
+
+/* Severity-tinted cards — transparent, colored borders only */
+.glass-critical {
+  background: transparent;
+  border: 1px solid rgba(225, 29, 72, 0.18);
+  border-top-color: rgba(225, 29, 72, 0.32);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(254, 205, 211, 0.22);
   color: #881337;
 }
 
 .glass-high {
-  background: linear-gradient(135deg, rgba(255, 237, 213, 0.5) 0%, rgba(253, 186, 116, 0.3) 100%);
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border: 1.5px solid rgba(253, 186, 116, 0.7);
-  border-bottom: 3px solid rgba(255, 237, 213, 0.95);
-  border-radius: 24px;
-  box-shadow:
-    0 24px 48px rgba(234, 88, 12, 0.08),
-    0 12px 24px rgba(234, 88, 12, 0.06),
-    inset 0 4px 6px rgba(255, 255, 255, 0.9),
-    inset 0 -8px 24px rgba(255, 237, 213, 0.8);
+  background: transparent;
+  border: 1px solid rgba(234, 88, 12, 0.18);
+  border-top-color: rgba(234, 88, 12, 0.32);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(253, 186, 116, 0.22);
   color: #7c2d12;
 }
 
 .glass-medium {
-  background: linear-gradient(135deg, rgba(254, 243, 199, 0.5) 0%, rgba(252, 211, 77, 0.3) 100%);
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border: 1.5px solid rgba(252, 211, 77, 0.7);
-  border-bottom: 3px solid rgba(254, 243, 199, 0.95);
-  border-radius: 24px;
-  box-shadow:
-    0 24px 48px rgba(217, 119, 6, 0.08),
-    0 12px 24px rgba(217, 119, 6, 0.06),
-    inset 0 4px 6px rgba(255, 255, 255, 0.9),
-    inset 0 -8px 24px rgba(254, 243, 199, 0.8);
+  background: transparent;
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  border-top-color: rgba(217, 119, 6, 0.32);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(253, 230, 138, 0.22);
   color: #78350f;
 }
 
 .glass-low {
-  background: linear-gradient(135deg, rgba(204, 251, 241, 0.5) 0%, rgba(94, 234, 212, 0.3) 100%);
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border: 1.5px solid rgba(94, 234, 212, 0.7);
-  border-bottom: 3px solid rgba(204, 251, 241, 0.95);
-  border-radius: 24px;
-  box-shadow:
-    0 24px 48px rgba(20, 184, 166, 0.08),
-    0 12px 24px rgba(20, 184, 166, 0.06),
-    inset 0 4px 6px rgba(255, 255, 255, 0.9),
-    inset 0 -8px 24px rgba(204, 251, 241, 0.8);
+  background: transparent;
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-top-color: rgba(20, 184, 166, 0.32);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(153, 246, 228, 0.22);
   color: #134e4a;
 }
 
-/* Gradient pill buttons with clean 3D lighting */
+/* Pill buttons - Clean solid colors */
 .pill-primary {
   padding: 10px 28px;
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
   color: white;
-  background: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #7c3aed 100%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-bottom: 2px solid rgba(255,255,255, 0.9);
-  box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.4),
-    0 0 0 6px rgba(255, 255, 255, 0.7),
-    inset 0 2px 4px rgba(255, 255, 255, 0.8),
-    0 15px 30px rgba(139, 92, 246, 0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #3b82f6; /* Dashboard blue */
+  border: none;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 .pill-primary:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 5px rgba(255, 255, 255, 0.5),
-    0 0 0 7px rgba(255, 255, 255, 0.8),
-    inset 0 2px 4px rgba(255, 255, 255, 1),
-    0 20px 40px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+  background: #2563eb;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
 }
 
 .pill-secondary {
@@ -183,26 +171,16 @@ body {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
   color: white;
-  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 50%, #14b8a6 100%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-bottom: 2px solid rgba(255,255,255, 0.9);
-  box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.4),
-    0 0 0 6px rgba(255, 255, 255, 0.7),
-    inset 0 2px 4px rgba(255, 255, 255, 0.8),
-    0 15px 30px rgba(45, 212, 191, 0.3);
-  transition: all 0.3s ease;
+  background: #14b8a6;
+  border: none;
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 .pill-secondary:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 5px rgba(255, 255, 255, 0.5),
-    0 0 0 7px rgba(255, 255, 255, 0.8),
-    inset 0 2px 4px rgba(255, 255, 255, 1),
-    0 20px 40px rgba(45, 212, 191, 0.4);
+  transform: translateY(-1px);
+  background: #0d9488;
 }
 
 .pill-ghost {
@@ -210,120 +188,22 @@ body {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #3a3632;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1.5px solid rgba(255, 255, 255, 0.9);
-  border-bottom: 3px solid rgba(255, 255, 255, 1);
-  box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.4),
-    0 0 0 6px rgba(255, 255, 255, 0.7),
-    inset 0 2px 4px rgba(255, 255, 255, 1),
-    0 15px 30px rgba(0, 0, 0, 0.08); /* Stronger glow underneath */
-  transition: all 0.3s ease;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-top-color: rgba(255, 255, 255, 0.90);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 .pill-ghost:hover {
-  background: rgba(255, 255, 255, 0.95);
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 5px rgba(255, 255, 255, 0.5),
-    0 0 0 7px rgba(255, 255, 255, 0.8),
-    inset 0 2px 4px rgba(255, 255, 255, 1),
-    0 20px 40px rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1e293b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
-/* Glass input container with bottom-lit rim */
-.pill-input-container {
-  display: flex;
-  align-items: center;
-  padding: 6px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 100%);
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
-  border-radius: 999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.8);
-  border-bottom: 3px solid rgba(255, 255, 255, 1);
-  box-shadow: 
-    0 15px 35px rgba(0, 0, 0, 0.08),
-    inset 0 4px 8px rgba(255, 255, 255, 0.9),
-    0 0 0 5px rgba(255, 255, 255, 0.4),
-    0 0 0 7px rgba(255, 255, 255, 0.6);
-}
-
-.pill-input {
-  flex: 1;
-  background: rgba(255,255,255,0.85);
-  border: 1px solid rgba(255,255,255,0.8);
-  border-bottom: 2px solid rgba(255,255,255,1);
-  border-radius: 999px;
-  padding: 12px 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #3a3632;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 4px 12px rgba(255,255,255,0.4);
-  outline: none;
-  min-width: 0;
-}
-.pill-input::placeholder {
-  color: #78716c;
-}
-
-.pill-icon-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #a78bfa, #818cf8);
-  color: white;
-  box-shadow: 
-    0 0 0 4px rgba(255,255,255,0.5),
-    0 0 0 6px rgba(255,255,255,0.8),
-    inset 0 2px 4px rgba(255,255,255,0.8),
-    0 10px 20px rgba(139, 92, 246, 0.4);
-  margin-left: 8px;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid rgba(255,255,255,0.6);
-  border-bottom: 2px solid rgba(255,255,255,1);
-}
-.pill-icon-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 
-    0 0 0 5px rgba(255,255,255,0.6),
-    0 0 0 7px rgba(255,255,255,0.9),
-    inset 0 2px 4px rgba(255,255,255,1),
-    0 15px 30px rgba(139, 92, 246, 0.5);
-}
-
-/* Holographic / iridescent accent card */
-.glass-holographic {
-  background: linear-gradient(
-    135deg,
-    rgba(196, 181, 253, 0.5) 0%,
-    rgba(165, 243, 252, 0.4) 25%,
-    rgba(251, 146, 191, 0.4) 50%,
-    rgba(253, 186, 116, 0.3) 75%,
-    rgba(167, 243, 208, 0.4) 100%
-  );
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-bottom: 3px solid rgba(255, 255, 255, 0.95);
-  border-radius: 32px;
-  box-shadow:
-    0 24px 48px rgba(0, 0, 0, 0.08),
-    0 12px 24px rgba(0, 0, 0, 0.06),
-    inset 0 4px 6px rgba(255, 255, 255, 0.9),
-    inset 0 -8px 24px rgba(255, 255, 255, 0.7);
-}
-
-/* Base Utility Animations */
+/* Utility Animations */
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
@@ -334,30 +214,15 @@ body {
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-4px); }
 }
 .animate-float {
   animation: float 4s ease-in-out infinite;
 }
 
-/* Video background overlay */
 .video-bg {
-  position: fixed;
-  inset: 0;
-  z-index: -30;
-  overflow: hidden;
+  display: none;
 }
-.video-bg video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* Frosted overlay on top of video to keep glass readable */
 .video-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: -20;
-  background: rgba(213, 204, 195, 0.55);
-  backdrop-filter: blur(2px) saturate(120%);
-  -webkit-backdrop-filter: blur(2px) saturate(120%);
+  display: none;
 }

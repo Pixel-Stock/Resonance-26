@@ -110,7 +110,7 @@ export function AnomalyList({ anomalies }: AnomalyListProps) {
                 )}
                 <p
                   className="text-xs font-mono truncate mt-1.5 px-2.5 py-1.5 rounded-lg text-[#1e293b]"
-                  style={{ background: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.5)" }}
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.5)" }}
                 >
                   {a.parsed_log.raw.slice(0, 120)}
                 </p>
@@ -123,8 +123,8 @@ export function AnomalyList({ anomalies }: AnomalyListProps) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 mt-3 text-[10px] font-mono px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity"
                 style={{
-                  background: "rgba(255,255,255,0.3)",
-                  border: "1px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.15)",
                   color: "#475569",
                   textDecoration: "none",
                 }}

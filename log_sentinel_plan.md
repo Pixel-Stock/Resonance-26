@@ -230,3 +230,4 @@ docker compose up --build
 | TanStack Query | Server state management | Free / OSS |
 | Recharts | Charts | Free / OSS |
 | Docker Compose | Local orchestration | Free |
+

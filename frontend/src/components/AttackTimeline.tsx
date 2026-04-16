@@ -94,11 +94,11 @@ export function AttackTimeline({ anomalies }: AttackTimelineProps) {
                 {/* Card */}
                 <div
                   style={{
-                    background: "rgba(255,255,255,0.22)",
+                    background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.4)",
                     borderRadius: "14px",
                     padding: "12px 14px",
-                    boxShadow: `0 2px 12px rgba(0,0,0,0.04), inset 0 1px 2px rgba(255,255,255,0.6)`,
+                    boxShadow: `0 2px 12px rgba(0,0,0,0.04), inset 0 1px 2px rgba(255,255,255,0.05)`,
                   }}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -115,7 +115,7 @@ export function AttackTimeline({ anomalies }: AttackTimelineProps) {
                     {a.parsed_log.user && <span>User: <span className="font-mono">{a.parsed_log.user}</span></span>}
                     <span
                       className="font-mono px-1.5 py-0.5 rounded"
-                      style={{ background: "rgba(255,255,255,0.3)", color, fontSize: "10px" }}
+                      style={{ background: "rgba(255,255,255,0.05)", color, fontSize: "10px" }}
                     >
                       {mitre.techniqueId} · {mitre.tactic}
                     </span>

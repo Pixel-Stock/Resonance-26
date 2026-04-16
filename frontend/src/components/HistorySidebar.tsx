@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, Trash2, Shield, ShieldAlert } from "lucide-react";
+import { Clock, Trash2, Shield, ShieldAlert, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { AnalysisResult, AIBriefing, Severity } from "@/lib/types";
 
 export interface HistoryEntry {
@@ -29,6 +29,24 @@ const SEV_COLORS: Record<Severity, string> = {
   LOW:      "#2dd4bf",
 };
 
+function DiffBadge({ delta, label }: { delta: number; label: string }) {
+  if (delta === 0) return (
+    <span className="flex items-center gap-0.5 text-[9px] font-mono" style={{ color: "#64748b" }}>
+      <Minus className="w-2 h-2" />{label}
+    </span>
+  );
+  const up = delta > 0;
+  return (
+    <span
+      className="flex items-center gap-0.5 text-[9px] font-bold font-mono"
+      style={{ color: up ? "#fb7185" : "#4ade80" }}
+    >
+      {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+      {up ? "+" : ""}{delta} {label}
+    </span>
+  );
+}
+
 export function HistorySidebar({ history, activeId, onSelect, onClear }: HistorySidebarProps) {
   return (
     <div className="flex flex-col h-full gap-1">
@@ -40,6 +58,14 @@ export function HistorySidebar({ history, activeId, onSelect, onClear }: History
           <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#94a3b8" }}>
             History
           </span>
+          {history.length > 0 && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ background: "rgba(124,58,237,0.12)", color: "#7c3aed" }}
+            >
+              {history.length}
+            </span>
+          )}
         </div>
         {history.length > 0 && (
           <button
@@ -47,7 +73,7 @@ export function HistorySidebar({ history, activeId, onSelect, onClear }: History
             className="flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 transition-all duration-200 hover:opacity-80"
             style={{
               color: "#94a3b8",
-              background: "rgba(255,255,255,0.3)",
+              background: "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.5)",
             }}
           >
@@ -74,6 +100,11 @@ export function HistorySidebar({ history, activeId, onSelect, onClear }: History
           ) : (
             history.map((entry, i) => {
               const isActive = entry.id === activeId;
+              const prev = history[i + 1]; // history is newest-first
+
+              const anomalyDelta = prev ? entry.anomalyCount - prev.anomalyCount : null;
+              const critDelta    = prev ? entry.severityCounts.CRITICAL - prev.severityCounts.CRITICAL : null;
+
               return (
                 <motion.button
                   key={entry.id}
@@ -88,13 +119,13 @@ export function HistorySidebar({ history, activeId, onSelect, onClear }: History
                     className="p-2.5 rounded-2xl transition-all duration-200"
                     style={{
                       background: isActive
-                        ? "rgba(255,255,255,0.6)"
+                        ? "rgba(124,58,237,0.08)"
                         : "rgba(255,255,255,0.25)",
                       border: isActive
-                        ? "1.5px solid rgba(255,255,255,0.85)"
+                        ? "1.5px solid rgba(124,58,237,0.25)"
                         : "1px solid rgba(255,255,255,0.4)",
                       boxShadow: isActive
-                        ? "0 4px 14px rgba(0,0,0,0.06), inset 0 1px 2px rgba(255,255,255,0.9)"
+                        ? "0 4px 14px rgba(124,58,237,0.08), inset 0 1px 2px rgba(255,255,255,0.3)"
                         : "0 1px 4px rgba(0,0,0,0.03)",
                     }}
                   >
@@ -130,13 +161,25 @@ export function HistorySidebar({ history, activeId, onSelect, onClear }: History
                     </div>
 
                     {/* Meta */}
-                    <div className="text-[10px] font-mono" style={{ color: "#94a3b8" }}>
+                    <div className="text-[10px] font-mono mb-1.5" style={{ color: "#94a3b8" }}>
                       {entry.totalLogs.toLocaleString()} logs ·{" "}
                       {new Date(entry.timestamp).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </div>
+
+                    {/* Diff vs previous scan */}
+                    {prev && anomalyDelta !== null && critDelta !== null && (
+                      <div
+                        className="flex items-center gap-2 pt-1.5 mt-1"
+                        style={{ borderTop: "1px solid rgba(255,255,255,0.2)" }}
+                      >
+                        <span className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: "#94a3b8" }}>vs prev</span>
+                        <DiffBadge delta={anomalyDelta} label="threats" />
+                        {critDelta !== 0 && <DiffBadge delta={critDelta} label="crit" />}
+                      </div>
+                    )}
                   </div>
                 </motion.button>
               );

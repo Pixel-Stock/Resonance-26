@@ -94,11 +94,11 @@ export function UploadZone({ onFileSelected, disabled }: UploadZoneProps) {
           {/* Icon container — embossed glass circle */}
           <div
             style={{
-              background: "linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.3) 100%)",
-              border: "1.5px solid rgba(255,255,255,0.7)",
+              background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.3) 100%)",
+              border: "1.5px solid rgba(255,255,255,0.05)",
               borderRadius: "50%",
               padding: "1.5rem",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.06), inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -1px 2px rgba(0,0,0,0.03)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.06), inset 0 2px 4px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.03)",
             }}
           >
             <AnimatePresence mode="wait">

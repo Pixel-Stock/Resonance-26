@@ -107,13 +107,13 @@ export function MetricsChart({ result }: MetricsChartProps) {
             />
             <Tooltip
               contentStyle={{
-                background: "rgba(255,255,255,0.6)",
+                background: "rgba(255,255,255,0.05)",
                 backdropFilter: "blur(20px)",
                 WebkitBackdropFilter: "blur(20px)",
                 border: "1.5px solid rgba(255,255,255,0.5)",
                 borderRadius: "14px",
                 fontSize: "12px",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.06), inset 0 1px 2px rgba(255,255,255,0.7)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.06), inset 0 1px 2px rgba(255,255,255,0.05)",
               }}
             />
             <Area
@@ -130,7 +130,7 @@ export function MetricsChart({ result }: MetricsChartProps) {
                 y={point.events}
                 r={6}
                 fill="#fb7185"
-                stroke="rgba(255,255,255,0.8)"
+                stroke="rgba(255,255,255,0.2)"
                 strokeWidth={2}
               />
             ))}

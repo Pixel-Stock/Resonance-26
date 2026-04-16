@@ -28,8 +28,14 @@ const FALLBACK_COORDS: Record<string, [number, number]> = {
   "95.173.136.70":  [37.6173, 55.7558],
 };
 
-// Regex to extract IPs from raw syslog lines ("from <ip>")
-const IP_FROM_RE = /from (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/gi;
+// Regex to extract any IP-like token from raw log text
+const IP_ANY_RE = /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g;
+
+function isValidPublicIP(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => p < 0 || p > 255)) return false;
+  return !isPrivate(ip);
+}
 
 function isPrivate(ip: string) {
   return (
@@ -49,29 +55,33 @@ function defaultCoords(ip: string): [number, number] {
   return [lon, lat];
 }
 
+type SeverityKey = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+
+const SEV_COLORS: Record<SeverityKey, string> = {
+  CRITICAL: "#fb7185",
+  HIGH:     "#fb923c",
+  MEDIUM:   "#fbbf24",
+  LOW:      "#2dd4bf",
+};
+
 /** Extract every unique public IP from parsed_log.ip AND the raw text of all anomalies. */
-function extractAllIPs(anomalies: Anomaly[]): Map<string, string> {
-  const ipToThreat = new Map<string, string>();
+function extractAllIPs(anomalies: Anomaly[]): Map<string, { threat: string; severity: SeverityKey }> {
+  const ipMap = new Map<string, { threat: string; severity: SeverityKey }>();
 
   for (const a of anomalies) {
-    // 1. Structured field
-    if (a.parsed_log.ip && !isPrivate(a.parsed_log.ip)) {
-      if (!ipToThreat.has(a.parsed_log.ip)) {
-        ipToThreat.set(a.parsed_log.ip, a.threat_type);
-      }
+    const val = { threat: a.threat_type, severity: a.severity as SeverityKey };
+    if (a.parsed_log.ip && isValidPublicIP(a.parsed_log.ip)) {
+      if (!ipMap.has(a.parsed_log.ip)) ipMap.set(a.parsed_log.ip, val);
     }
-    // 2. Regex on raw log text — catches "from <ip>" in syslog lines
-    const matches = [...a.parsed_log.raw.matchAll(IP_FROM_RE)];
+    const matches = [...a.parsed_log.raw.matchAll(IP_ANY_RE)];
     for (const m of matches) {
       const ip = m[1];
-      if (!isPrivate(ip) && !ipToThreat.has(ip)) {
-        ipToThreat.set(ip, a.threat_type);
-      }
+      if (isValidPublicIP(ip) && !ipMap.has(ip)) ipMap.set(ip, val);
     }
   }
 
-  console.log(`[ThreatMap] IPs extracted: ${ipToThreat.size}`, [...ipToThreat.keys()]);
-  return ipToThreat;
+  console.log(`[ThreatMap] IPs extracted: ${ipMap.size}`, [...ipMap.keys()]);
+  return ipMap;
 }
 
 async function geolocateIPs(ipToThreat: Map<string, string>): Promise<GeoLocation[]> {
@@ -86,7 +96,7 @@ async function geolocateIPs(ipToThreat: Map<string, string>): Promise<GeoLocatio
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(unique.slice(0, 15).map((q) => ({ query: q }))),
+        body: JSON.stringify(unique.slice(0, 100).map((q) => ({ query: q }))),
       }
     );
     if (res.ok) {
@@ -188,7 +198,7 @@ export function ThreatMap({ anomalies }: ThreatMapProps) {
                 <circle
                   r={5}
                   fill="#fb7185"
-                  stroke="rgba(255,255,255,0.8)"
+                  stroke="rgba(255,255,255,0.2)"
                   strokeWidth={1.5}
                   style={{ cursor: "pointer", filter: "drop-shadow(0 0 4px rgba(251,113,133,0.6))" }}
                 />
@@ -204,22 +214,22 @@ export function ThreatMap({ anomalies }: ThreatMapProps) {
               position: "absolute",
               bottom: "12px",
               left: "12px",
-              background: "rgba(255,255,255,0.7)",
+              background: "rgba(255,255,255,0.05)",
               backdropFilter: "blur(20px)",
               WebkitBackdropFilter: "blur(20px)",
-              border: "1.5px solid rgba(255,255,255,0.6)",
+              border: "1.5px solid rgba(255,255,255,0.05)",
               borderRadius: "12px",
               padding: "10px 14px",
               fontSize: "12px",
               color: "#3a3632",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 2px rgba(255,255,255,0.8)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 2px rgba(255,255,255,0.2)",
               pointerEvents: "none",
             }}
           >
             <p className="font-bold">{tooltip.ip}</p>
             <p style={{ color: "#64748b" }}>{tooltip.city}, {tooltip.country}</p>
             <p style={{ color: "#fb7185", fontSize: "10px", fontFamily: "monospace", marginTop: "2px" }}>
-              {tooltip.threat_type.replace(/_/g, " ")}
+              {String(tooltip.threat_type ?? "UNKNOWN").replace(/_/g, " ")}
             </p>
           </div>
         )}

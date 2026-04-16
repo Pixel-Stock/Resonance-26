@@ -59,7 +59,7 @@ export function AIBriefingCard({ briefing, streamingText, isStreaming }: AIBrief
       )}
 
       {hasBriefing && isRateLimited && (
-        <div className="p-4 rounded-2xl bg-white/50 border border-white/60 mt-2">
+        <div className="p-4 rounded-2xl glass-sub border-white/30 mt-2">
           <div className="flex items-center gap-2 mb-2 text-rose-500">
             <FileWarning className="w-4 h-4" />
             <h3 className="text-sm font-bold uppercase tracking-wider">API Quota Exhausted</h3>
@@ -68,7 +68,7 @@ export function AIBriefingCard({ briefing, streamingText, isStreaming }: AIBrief
             The Gemini API key configured in the environment has reached its free tier rate limit. 
             The system successfully scanned logs using local ML models, but the secondary AI executive briefing could not be generated.
           </p>
-          <div className="text-xs font-mono p-3 rounded-xl overflow-x-auto" style={{ color: "#64748b", background: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.5)" }}>
+          <div className="text-xs font-mono p-3 rounded-xl overflow-x-auto" style={{ color: "#64748b", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
             {typeof briefing.executive_summary === 'string' ? briefing.executive_summary.substring(0, 150) + "..." : "Error"}
           </div>
         </div>
@@ -96,11 +96,11 @@ export function AIBriefingCard({ briefing, streamingText, isStreaming }: AIBrief
               className="text-sm leading-relaxed font-mono"
               style={{
                 color: "#475569",
-                background: "rgba(255,255,255,0.2)",
-                border: "1px solid rgba(255,255,255,0.35)",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: "14px",
                 padding: "0.875rem",
-                boxShadow: "inset 0 1px 3px rgba(255,255,255,0.6)",
+                boxShadow: "inset 0 1px 3px rgba(255,255,255,0.05)",
               }}
             >
               {briefing.technical_details}
