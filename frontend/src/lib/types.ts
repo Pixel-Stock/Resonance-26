@@ -29,6 +29,7 @@ export interface Anomaly {
   threat_score: number;
   attack_chain: string[];
   severity: Severity;
+  target_url?: string;
 }
 
 export interface AIBriefing {

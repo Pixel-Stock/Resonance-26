@@ -48,6 +48,7 @@ class Anomaly(BaseModel):
     threat_score: int = Field(default=0, description="Rule-based threat score (0-2 Low, 3-5 Med, 6-8 High, 9+ Critical)")
     attack_chain: list[str] = Field(default_factory=list, description="Labels describing each scoring rule that fired")
     severity: Severity = Severity.LOW
+    target_url: str = Field(default="", description="The target website URL this anomaly relates to")
 
 
 class AIBriefing(BaseModel):

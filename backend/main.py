@@ -283,6 +283,7 @@ async def ingest(request: Request):
     """
     body = await request.json()
     raw_text = body.get("lines", "")
+    target_url = body.get("target_url", "")
     if not raw_text.strip():
         return {"anomalies": [], "new": 0}
 
@@ -295,6 +296,11 @@ async def ingest(request: Request):
         df = detect_anomalies(df, contamination=DEFAULT_CONTAMINATION)
         incident_list = correlate(df)
         anomalies = rank_anomalies(incident_list, top_n=DEFAULT_TOP_N)
+
+        # Tag each anomaly with the target URL
+        if target_url:
+            for anomaly in anomalies:
+                anomaly.target_url = target_url
 
         new_anomalies = []
         for anomaly in anomalies:

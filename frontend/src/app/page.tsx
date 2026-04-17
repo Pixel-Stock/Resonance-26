@@ -30,6 +30,186 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type NavItem = "dashboard" | "upload" | "monitor" | "history";
 
+/* ── Live Monitor Strip — always visible at top of dashboard ── */
+function LiveMonitorStrip({
+  anomalies,
+  alertsFired,
+  isConnected,
+  onStop,
+}: {
+  anomalies: Anomaly[];
+  alertsFired: number;
+  isConnected: boolean;
+  onStop: () => void;
+}) {
+  const targetUrl = anomalies.find((a) => a.target_url)?.target_url || "";
+  const critCount = anomalies.filter((a) => a.severity === "CRITICAL").length;
+  const highCount = anomalies.filter((a) => a.severity === "HIGH").length;
+  const medCount = anomalies.filter((a) => a.severity === "MEDIUM").length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full mb-4"
+      style={{
+        background: "rgba(15, 23, 42, 0.7)",
+        border: "1px solid rgba(239, 68, 68, 0.2)",
+        borderRadius: 16,
+        padding: "14px 20px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* Animated glow border */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: 16,
+          background: `linear-gradient(90deg, transparent, rgba(239,68,68,0.06), transparent)`,
+          animation: "shimmer 3s ease-in-out infinite",
+          pointerEvents: "none",
+        }}
+      />
+
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        {/* Left: LIVE indicator + target */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span
+                className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                style={{ background: isConnected ? "#ef4444" : "#64748b" }}
+              />
+              <span
+                className="relative inline-flex rounded-full h-3 w-3"
+                style={{ background: isConnected ? "#ef4444" : "#64748b" }}
+              />
+            </span>
+            <span
+              className="text-sm font-bold tracking-wider"
+              style={{ color: isConnected ? "#ef4444" : "#64748b" }}
+            >
+              {isConnected ? "LIVE" : "CONNECTING"}
+            </span>
+          </div>
+
+          {targetUrl && (
+            <span
+              className="text-xs font-mono px-2.5 py-1 rounded-lg flex items-center gap-1.5"
+              style={{
+                background: "rgba(99, 102, 241, 0.1)",
+                border: "1px solid rgba(129, 140, 248, 0.2)",
+                color: "#818cf8",
+              }}
+            >
+              <span style={{ fontSize: 10, opacity: 0.7 }}>TARGET</span>
+              {(() => {
+                try {
+                  return new URL(
+                    targetUrl.startsWith("http") ? targetUrl : "https://" + targetUrl
+                  ).hostname;
+                } catch {
+                  return targetUrl;
+                }
+              })()}
+            </span>
+          )}
+        </div>
+
+        {/* Center: Threat counts */}
+        <div className="flex items-center gap-2">
+          <span
+            className="text-sm font-bold tabular-nums px-3 py-1 rounded-full"
+            style={{
+              background: anomalies.length > 0 ? "rgba(239,68,68,0.1)" : "rgba(74,222,128,0.1)",
+              color: anomalies.length > 0 ? "#fb7185" : "#4ade80",
+              border: `1px solid ${
+                anomalies.length > 0 ? "rgba(239,68,68,0.2)" : "rgba(74,222,128,0.2)"
+              }`,
+            }}
+          >
+            {anomalies.length} threat{anomalies.length !== 1 ? "s" : ""}
+          </span>
+          {critCount > 0 && (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(225,29,72,0.15)", color: "#fb7185" }}
+            >
+              {critCount} CRIT
+            </span>
+          )}
+          {highCount > 0 && (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(234,88,12,0.15)", color: "#fb923c" }}
+            >
+              {highCount} HIGH
+            </span>
+          )}
+          {medCount > 0 && (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(217,119,6,0.15)", color: "#fbbf24" }}
+            >
+              {medCount} MED
+            </span>
+          )}
+          {alertsFired > 0 && (
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                color: "#ef4444",
+                border: "1px solid rgba(239,68,68,0.2)",
+              }}
+            >
+              <Bell className="w-3 h-3" />
+              {alertsFired} sent
+            </span>
+          )}
+        </div>
+
+        {/* Right: Target site link + Stop */}
+        <div className="flex items-center gap-2">
+          <a
+            href="http://localhost:4000/attack"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+            style={{
+              background: "rgba(251, 113, 133, 0.1)",
+              border: "1px solid rgba(251, 113, 133, 0.2)",
+              color: "#fb7185",
+              textDecoration: "none",
+              cursor: "pointer",
+            }}
+          >
+            <Sparkles className="w-3 h-3" />
+            Launch Attack
+          </a>
+          <motion.button
+            onClick={onStop}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="text-[11px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+            style={{
+              background: "rgba(100, 116, 139, 0.15)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#94a3b8",
+              cursor: "pointer",
+            }}
+          >
+            <WifiOff className="w-3 h-3" />
+            Stop
+          </motion.button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 /* ── 4 stats cards shown above results ────────────────────── */
 function StatsCards({ result }: { result: AnalysisResult }) {
   const total = result.total_logs_parsed;
@@ -470,7 +650,7 @@ function LandingPage({
 /* ── Main export ─────────────────────────────────────────────── */
 export default function Home() {
   const [showLanding, setShowLanding] = useState(true);
-  const [activeNav, setActiveNav] = useState<NavItem>("upload");
+  const [activeNav, setActiveNav] = useState<NavItem>("dashboard");
   const [state, setState] = useState<AnalysisState>({ phase: "idle" });
   const [selectedIP, setSelectedIP] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -480,6 +660,7 @@ export default function Home() {
   const watchAbortRef = useRef<AbortController | null>(null);
   const briefingAbortRef = useRef<AbortController | null>(null);
   const briefingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasAutoStartedRef = useRef(false);
 
   /* ── Load history from localStorage on mount ─────────────── */
   useEffect(() => {
@@ -492,7 +673,7 @@ export default function Home() {
   /* ── Auto-switch nav when phase changes ──────────────────── */
   useEffect(() => {
     if (state.phase === "done") setActiveNav("dashboard");
-    if (state.phase === "live_monitoring") setActiveNav("monitor");
+    if (state.phase === "live_monitoring") setActiveNav("dashboard");
   }, [state.phase]);
 
   /* ── Save to history when analysis finishes ──────────────── */
@@ -759,6 +940,14 @@ export default function Home() {
   const isLiveMonitor = state.phase === "live_monitoring";
   const result = hasResults ? state.result : null;
 
+  /* ── Auto-start live monitoring when entering dashboard ─── */
+  useEffect(() => {
+    if (!showLanding && !hasAutoStartedRef.current && state.phase === "idle") {
+      hasAutoStartedRef.current = true;
+      handleLiveMonitor();
+    }
+  }, [showLanding, state.phase, handleLiveMonitor]);
+
   /* ── Landing page ──────────────────────────────────────────── */
   if (showLanding) {
     return (
@@ -769,7 +958,7 @@ export default function Home() {
         }}
         onMonitor={() => {
           setShowLanding(false);
-          setActiveNav("monitor");
+          setActiveNav("dashboard");
           handleLiveMonitor();
         }}
       />
@@ -976,6 +1165,16 @@ export default function Home() {
         >
           <div className="w-full mx-auto flex flex-col gap-5">
 
+            {/* ── LIVE MONITOR STRIP — always at top of dashboard ── */}
+            {isLiveMonitor && state.phase === "live_monitoring" && (
+              <LiveMonitorStrip
+                anomalies={state.anomalies}
+                alertsFired={state.alertsFired}
+                isConnected={true}
+                onStop={handleStopMonitor}
+              />
+            )}
+
             {/* Header */}
             <header
               className="flex items-center justify-between pb-4"
@@ -1028,7 +1227,14 @@ export default function Home() {
                         border: "1px solid rgba(255,255,255,0.07)",
                       }}
                     >
-                      localhost:4000
+                      {state.anomalies.find((a) => a.target_url)?.target_url
+                        ? (() => {
+                            try {
+                              const u = state.anomalies.find((a) => a.target_url)!.target_url!;
+                              return new URL(u.startsWith("http") ? u : "https://" + u).hostname;
+                            } catch { return "monitoring"; }
+                          })()
+                        : "monitoring"}
                     </span>
                     <span
                       className="text-sm font-mono px-3 py-1 rounded-full"
@@ -1347,17 +1553,20 @@ export default function Home() {
                         </span>
                       </div>
                       <p
-                        className="text-[12px] text-center max-w-xs"
+                        className="text-[12px] text-center max-w-sm"
                         style={{ color: "#64748b" }}
                       >
                         Open{" "}
-                        <code
-                          className="font-mono"
-                          style={{ color: "#818cf8" }}
+                        <a
+                          href="http://localhost:4000/attack"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono font-semibold"
+                          style={{ color: "#818cf8", textDecoration: "underline" }}
                         >
-                          localhost:4000/simulate
-                        </code>{" "}
-                        and trigger an attack
+                          localhost:4000/attack
+                        </a>{" "}
+                        to launch an attack on any website. Threats will appear here in real-time.
                       </p>
                     </div>
                   ) : (
