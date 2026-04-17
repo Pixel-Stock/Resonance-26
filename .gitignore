@@ -1,0 +1,14 @@
+venv/
+backend/venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.DS_Store
+node_modules/
+.next/
+dist/
+build/
+*.log
