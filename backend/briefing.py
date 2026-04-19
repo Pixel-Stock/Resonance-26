@@ -81,7 +81,7 @@ async def stream_answer(anomalies: list[Anomaly], question: str, briefing: dict)
     summary = briefing.get("executive_summary", "")
 
     stream = await client.chat.completions.create(
-        model=GROQ_MODEL,
+        model="llama-3.1-8b-instant",  # fast model for chat Q&A
         messages=[
             {
                 "role": "system",

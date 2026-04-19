@@ -8,3 +8,4 @@ python-dotenv
 groq
 pydantic
 sse-starlette
+reportlab

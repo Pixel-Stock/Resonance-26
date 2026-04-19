@@ -73,7 +73,20 @@ def correlate(df: pd.DataFrame) -> list[Anomaly]:
     # Rule 2: Persistence (Cron /tmp)
     cron_mask = (df["action"] == "CRON_JOB") & df["raw"].str.contains(r"/tmp/|/var/tmp/", na=False, regex=True)
     for idx, row in df[cron_mask].iterrows():
-        incidents.append(_build_anomaly(row, ThreatType.PERSISTENCE, Severity.CRITICAL, 9, ["Suspicious persistence: cron job executing script from /tmp"]))
+        enriched_row = row.copy()
+        if not str(row.get("ip", "") or ""):
+            user = str(row.get("user", "") or "")
+            ts = row["timestamp"]
+            if user:
+                recent_login = df[
+                    (df["action"] == "ACCEPTED_LOGIN") &
+                    (df["user"] == user) &
+                    (df["timestamp"] <= ts) &
+                    (df["ip"].astype(str) != "")
+                ]
+                if not recent_login.empty:
+                    enriched_row["ip"] = str(recent_login.iloc[-1]["ip"] or "")
+        incidents.append(_build_anomaly(enriched_row, ThreatType.PERSISTENCE, Severity.CRITICAL, 9, ["Suspicious persistence: cron job executing script from /tmp"]))
         rule_matched_indices.add(idx)
 
     # Rule 3: Brute Force & Account Compromise
@@ -142,7 +155,20 @@ def correlate(df: pd.DataFrame) -> list[Anomaly]:
     # Rule 6: Privilege Escalation
     sudo_mask = (df["action"] == "SUDO_COMMAND") & df["raw"].str.contains("root|/bin/bash|/bin/sh", case=False, na=False)
     for idx, row in df[sudo_mask].iterrows():
-        incidents.append(_build_anomaly(row, ThreatType.PRIVILEGE_ESCALATION, Severity.HIGH, 7, [f"Privilege Escalation: Suspicious sudo command execution by '{row.get('user', 'unknown')}': {row.get('raw','')}"]))
+        enriched_row = row.copy()
+        if not str(row.get("ip", "") or ""):
+            user = str(row.get("user", "") or "")
+            ts = row["timestamp"]
+            if user:
+                recent_login = df[
+                    (df["action"] == "ACCEPTED_LOGIN") &
+                    (df["user"] == user) &
+                    (df["timestamp"] <= ts) &
+                    (df["ip"].astype(str) != "")
+                ]
+                if not recent_login.empty:
+                    enriched_row["ip"] = str(recent_login.iloc[-1]["ip"] or "")
+        incidents.append(_build_anomaly(enriched_row, ThreatType.PRIVILEGE_ESCALATION, Severity.HIGH, 7, [f"Privilege Escalation: Suspicious sudo command execution by '{row.get('user', 'unknown')}': {row.get('raw','')}"]))
         rule_matched_indices.add(idx)
 
     # Rule 7: Catch-All Isolation Forest Anomalies (that missed exact rules)

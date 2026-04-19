@@ -5,9 +5,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   RotateCcw, Radio, Shield, WifiOff, Download, ShieldOff,
   LayoutDashboard, Upload, Activity, History, Zap, Brain, Bell,
-  FileText, CheckCircle, ShieldAlert, X, Sparkles,
+  FileText, CheckCircle, ShieldAlert, X, Sparkles, Mail, Send, Loader2,
 } from "lucide-react";
-import { downloadPDFReport } from "@/lib/generateReport";
+import { downloadPDFReport, generatePDFBase64 } from "@/lib/generateReport";
 import { downloadBlocklist } from "@/lib/generateBlocklist";
 
 import { UploadZone } from "@/components/UploadZone";
@@ -755,7 +755,7 @@ export default function Home() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
@@ -849,7 +849,7 @@ export default function Home() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buf += decoder.decode(value, { stream: true });
+        buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
         const lines = buf.split("\n");
         buf = lines.pop() || "";
         for (const line of lines) {
@@ -933,6 +933,51 @@ export default function Home() {
       localStorage.removeItem("log_sentinel_history");
     } catch { /* ignore */ }
   }, []);
+
+  // ── Email report state ────────────────────────────────────────
+  const [emailPanelOpen, setEmailPanelOpen] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [emailError, setEmailError] = useState("");
+
+  const handleSendReport = useCallback(async () => {
+    if (!emailInput.trim() || state.phase !== "done") return;
+    setEmailStatus("sending");
+    setEmailError("");
+    try {
+      const pdf64 = await generatePDFBase64(
+        state.result,
+        state.briefing,
+        currentLabelRef.current || "analysis"
+      );
+      const filename = `log-sentinel-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const res = await fetch(`${API_URL}/api/email-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailInput.trim(), pdf_base64: pdf64, filename }),
+      });
+      if (!res.ok) {
+        setEmailStatus("error");
+        setEmailError(`Server error ${res.status} — restart the backend.`);
+        return;
+      }
+      const data = await res.json();
+      if (data.success) {
+        setEmailStatus("sent");
+        setTimeout(() => {
+          setEmailStatus("idle");
+          setEmailPanelOpen(false);
+          setEmailInput("");
+        }, 2500);
+      } else {
+        setEmailStatus("error");
+        setEmailError(data.error || "Unknown error from server.");
+      }
+    } catch {
+      setEmailStatus("error");
+      setEmailError("Network error — is the backend running?");
+    }
+  }, [emailInput, state]);
 
   const isProcessing = state.phase === "uploading" || state.phase === "analyzing";
   const hasResults =
@@ -1303,6 +1348,101 @@ export default function Home() {
                       <Download className="w-3.5 h-3.5" />
                       PDF
                     </motion.button>
+
+                    {/* Email report button + inline panel */}
+                    <AnimatePresence mode="wait">
+                      {!emailPanelOpen ? (
+                        <motion.button
+                          key="email-btn"
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          onClick={() => {
+                            setEmailPanelOpen(true);
+                            setEmailStatus("idle");
+                            setEmailError("");
+                          }}
+                          className="pill-ghost flex items-center gap-1.5"
+                          style={{ padding: "7px 14px", fontSize: "0.8rem" }}
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          Email
+                        </motion.button>
+                      ) : (
+                        <motion.div
+                          key="email-panel"
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="flex items-center gap-1.5 overflow-hidden"
+                          style={{
+                            background: "rgba(15,23,42,0.8)",
+                            border: "1px solid rgba(129,140,248,0.25)",
+                            borderRadius: 999,
+                            padding: "4px 4px 4px 12px",
+                          }}
+                        >
+                          {emailStatus === "sent" ? (
+                            <span className="flex items-center gap-1.5 text-xs font-medium px-2" style={{ color: "#4ade80", whiteSpace: "nowrap" }}>
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Sent!
+                            </span>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: "#818cf8" }} />
+                              <input
+                                type="email"
+                                value={emailInput}
+                                onChange={(e) => { setEmailInput(e.target.value); setEmailError(""); }}
+                                onKeyDown={(e) => e.key === "Enter" && handleSendReport()}
+                                placeholder="recipient@email.com"
+                                autoFocus
+                                style={{
+                                  background: "transparent",
+                                  border: "none",
+                                  outline: "none",
+                                  fontSize: "0.78rem",
+                                  color: "#e2e8f0",
+                                  width: 170,
+                                }}
+                              />
+                              {emailError && (
+                                <span className="text-[10px]" style={{ color: "#fb7185", maxWidth: 200 }}>
+                                  {emailError}
+                                </span>
+                              )}
+                              <button
+                                onClick={handleSendReport}
+                                disabled={emailStatus === "sending" || !emailInput.trim()}
+                                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+                                style={{
+                                  background: emailStatus === "sending" ? "rgba(129,140,248,0.2)" : "rgba(129,140,248,0.9)",
+                                  color: "white",
+                                  border: "none",
+                                  cursor: emailStatus === "sending" || !emailInput.trim() ? "not-allowed" : "pointer",
+                                  opacity: !emailInput.trim() ? 0.5 : 1,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {emailStatus === "sending" ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Send className="w-3 h-3" />
+                                )}
+                                {emailStatus === "sending" ? "Sending…" : "Send"}
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => { setEmailPanelOpen(false); setEmailInput(""); setEmailStatus("idle"); setEmailError(""); }}
+                            className="flex items-center justify-center w-6 h-6 rounded-full"
+                            style={{ color: "#64748b", background: "transparent", border: "none", cursor: "pointer" }}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <motion.button
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}

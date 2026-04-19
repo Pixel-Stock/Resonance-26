@@ -12,6 +12,9 @@ from schemas import ParsedLog
 
 # ---------- Regex patterns ----------
 
+# Validated IPv4 octet pattern (0-255 only) — shared across all patterns
+_IPv4 = r"(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+
 # syslog / auth.log: "Apr 10 14:23:01 server sshd[12345]: Failed password for root from 192.168.1.1 port 22 ssh2"
 _SYSLOG_RE = re.compile(
     r"(?P<timestamp>\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+"
@@ -22,7 +25,7 @@ _SYSLOG_RE = re.compile(
 
 # Apache / Nginx combined: '192.168.1.1 - admin [10/Apr/2025:14:23:01 +0000] "GET /admin HTTP/1.1" 200 1234'
 _ACCESS_RE = re.compile(
-    r"(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+"
+    r"(?P<ip>" + _IPv4 + r")\s+"
     r"(?:\S+)\s+"
     r"(?P<user>\S+)\s+"
     r"\[(?P<timestamp>[^\]]+)\]\s+"
@@ -31,8 +34,8 @@ _ACCESS_RE = re.compile(
     r"(?P<bytes>\d+)"
 )
 
-# Generic: just look for an IP and a timestamp-like pattern
-_GENERIC_IP_RE = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3})\b")
+# Generic: just look for a valid IP and a timestamp-like pattern
+_GENERIC_IP_RE = re.compile(r"\b(" + _IPv4 + r")\b")
 _GENERIC_TS_RE = re.compile(
     r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})"  # ISO-ish
     r"|(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})"     # syslog-style
@@ -40,10 +43,19 @@ _GENERIC_TS_RE = re.compile(
 
 # Patterns to extract auth-related info from syslog messages
 _FAILED_PW_RE = re.compile(
-    r"Failed password for (?:invalid user )?(?P<user>\S+) from (?P<ip>\S+)(?: port (?P<port>\d+))?"
+    r"Failed password for (?:invalid user )?(?P<user>\S+) from (?P<ip>" + _IPv4 + r")(?: port (?P<port>\d+))?"
 )
 _ACCEPTED_PW_RE = re.compile(
-    r"Accepted (?:password|publickey) for (?P<user>\S+) from (?P<ip>\S+)(?: port (?P<port>\d+))?"
+    r"Accepted (?:password|publickey) for (?P<user>\S+) from (?P<ip>" + _IPv4 + r")(?: port (?P<port>\d+))?"
+)
+# "Invalid user admin from 10.0.0.5 port 44892" — treated as a failed login attempt
+_INVALID_USER_RE = re.compile(
+    r"Invalid user (?P<user>\S+) from (?P<ip>" + _IPv4 + r")(?: port (?P<port>\d+))?"
+)
+# Disconnect / connection-closed lines that carry a source IP
+_DISCONNECT_RE = re.compile(
+    r"(?:Disconnected from|Received disconnect from|Connection closed by)(?: (?:invalid user|user) \S+)?"
+    r" (?P<ip>" + _IPv4 + r")(?: port (?P<port>\d+))?"
 )
 _SUDO_RE = re.compile(
     r"(?P<user>\S+)\s*:.*COMMAND=(?P<command>.*)"
@@ -98,9 +110,11 @@ def _parse_syslog_line(line: str) -> ParsedLog | None:
     port = None
 
     # Try to extract structured info from the message
-    fm = _FAILED_PW_RE.search(message)
-    am = _ACCEPTED_PW_RE.search(message)
-    sm = _SUDO_RE.search(message)
+    fm   = _FAILED_PW_RE.search(message)
+    am   = _ACCEPTED_PW_RE.search(message)
+    iuv  = _INVALID_USER_RE.search(message)
+    disc = _DISCONNECT_RE.search(message)
+    sm   = _SUDO_RE.search(message)
     sess = _SESSION_RE.search(message)
     prom = _PROMISCUOUS_RE.search(message)
     cron = _CRON_CMD_RE.search(message)
@@ -118,12 +132,23 @@ def _parse_syslog_line(line: str) -> ParsedLog | None:
         action = "FAILED_LOGIN"
         status = "failure"
         port = int(fm.group("port")) if fm.group("port") else None
+    elif iuv:
+        ip = iuv.group("ip")
+        user = iuv.group("user")
+        action = "FAILED_LOGIN"
+        status = "failure"
+        port = int(iuv.group("port")) if iuv.group("port") else None
     elif am:
         ip = am.group("ip")
         user = am.group("user")
         action = "ACCEPTED_LOGIN"
         status = "success"
         port = int(am.group("port")) if am.group("port") else None
+    elif disc:
+        ip = disc.group("ip")
+        action = "DISCONNECTED"
+        status = "info"
+        port = int(disc.group("port")) if disc.group("port") else None
     elif sm:
         user = sm.group("user")
         action = "SUDO_COMMAND"
@@ -134,7 +159,7 @@ def _parse_syslog_line(line: str) -> ParsedLog | None:
         status = "info"
     else:
         action = m.group("service")
-        # Try to grab an IP from the message
+        # Try to grab a valid IP from the message
         ip_match = _GENERIC_IP_RE.search(message)
         if ip_match:
             ip = ip_match.group(1)

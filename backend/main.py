@@ -14,13 +14,14 @@ import os
 import traceback
 
 from dotenv import load_dotenv
-load_dotenv(override=True)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"), override=True)
 
 from fastapi import FastAPI, File, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
-from alerts import fire_alerts
+import base64
+from alerts import fire_alerts, send_pdf_to_email
 from briefing import stream_briefing, generate_briefing_sync, stream_answer
 from config import (
     ALLOWED_EXTENSIONS,
@@ -389,6 +390,34 @@ async def ask_endpoint(request: Request):
         yield {"event": "answer_done", "data": ""}
 
     return EventSourceResponse(event_generator())
+
+
+@app.post("/api/email-report")
+async def email_report(request: Request):
+    """
+    Send a PDF report to any email address entered by the user.
+    Body: { email: str, pdf_base64: str, filename: str }
+    """
+    body = await request.json()
+    email = body.get("email", "").strip()
+    pdf_base64 = body.get("pdf_base64", "").strip()
+    filename = body.get("filename", "threat_report.pdf").strip() or "threat_report.pdf"
+
+    if not email or "@" not in email:
+        return {"success": False, "error": "Invalid email address."}
+    if not pdf_base64:
+        return {"success": False, "error": "No PDF data provided."}
+
+    try:
+        pdf_bytes = base64.b64decode(pdf_base64)
+    except Exception:
+        return {"success": False, "error": "PDF data is not valid base64."}
+
+    try:
+        await asyncio.to_thread(send_pdf_to_email, email, pdf_bytes, filename)
+        return {"success": True}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 @app.get("/api/health")

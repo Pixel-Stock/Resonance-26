@@ -11,6 +11,9 @@ import smtplib
 import ssl
 import urllib.request
 import urllib.parse
+from datetime import datetime
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -21,6 +24,7 @@ GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "")
 ALERT_TO = os.getenv("ALERT_EMAIL_TO", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_GROUP_CHAT_ID = os.getenv("TELEGRAM_GROUP_CHAT_ID", "")
 
 _SEVERITY_COLORS = {
     "CRITICAL": "#dc2626",
@@ -118,14 +122,38 @@ def send_email_alert(anomaly: Anomaly) -> None:
         print("[alerts] Email skipped — credentials not configured")
         return
 
-    msg = MIMEMultipart("alternative")
+    # Outer container supports both HTML body and PDF attachment
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = (
         f"⚠️ [{anomaly.severity}] {anomaly.threat_type} detected — Log Sentinel"
     )
     msg["From"] = GMAIL_USER
     msg["To"] = ALERT_TO
 
-    msg.attach(MIMEText(_build_email_html(anomaly), "html"))
+    # HTML body wrapped in an alternative sub-part
+    html_part = MIMEMultipart("alternative")
+    html_part.attach(MIMEText(_build_email_html(anomaly), "html"))
+    msg.attach(html_part)
+
+    # PDF attachment
+    try:
+        from pdf_report import generate_pdf_report
+        pdf_bytes = generate_pdf_report(anomaly)
+        ts_tag = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"threat_report_{ts_tag}.pdf"
+
+        attachment = MIMEBase("application", "pdf")
+        attachment.set_payload(pdf_bytes)
+        encoders.encode_base64(attachment)
+        attachment.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=filename,
+        )
+        msg.attach(attachment)
+        print(f"[alerts] PDF report attached: {filename}")
+    except Exception as exc:
+        print(f"[alerts] PDF generation failed (email still sent): {exc}")
 
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -273,6 +301,18 @@ def _confidence_label(score: float) -> str:
     return "Low Confidence"
 
 
+def _send_telegram_to(chat_id: str, text: str) -> None:
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps({"chat_id": chat_id, "text": text}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    urllib.request.urlopen(req, timeout=10)
+    print(f"[alerts] Telegram sent -> chat {chat_id}")
+
+
 def send_telegram_alert(anomaly: Anomaly, isp: str = "") -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("[alerts] Telegram skipped — credentials not configured")
@@ -318,26 +358,62 @@ def send_telegram_alert(anomaly: Anomaly, isp: str = "") -> None:
         f"📋 Raw Log:\n{raw_display}\n"
     )
 
-    payload = json.dumps({
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-        "parse_mode": None,  # plain text — matches template exactly
-    })
-    # Remove null parse_mode
-    payload_dict = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-    }
+    _send_telegram_to(TELEGRAM_CHAT_ID, text)
+    if TELEGRAM_GROUP_CHAT_ID:
+        _send_telegram_to(TELEGRAM_GROUP_CHAT_ID, text)
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload_dict).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    urllib.request.urlopen(req, timeout=10)
-    print(f"[alerts] Telegram sent -> chat {TELEGRAM_CHAT_ID}")
+
+def send_pdf_to_email(to_email: str, pdf_bytes: bytes, filename: str = "threat_report.pdf") -> None:
+    """Send a PDF report to any given email address (used by the manual email-report feature)."""
+    if not GMAIL_PASSWORD or not GMAIL_USER:
+        raise RuntimeError("Email credentials not configured (ALERT_EMAIL_FROM / GMAIL_APP_PASSWORD)")
+
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = "Log Sentinel — Security Analysis Report"
+    msg["From"] = GMAIL_USER
+    msg["To"] = to_email
+
+    html_body = """
+<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;background:#f8fafc;padding:32px;margin:0">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;
+              box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden">
+    <div style="background:linear-gradient(135deg,#818cf8,#6366f1);padding:20px 28px">
+      <h1 style="color:#fff;margin:0;font-size:20px">Log Sentinel — Security Report</h1>
+    </div>
+    <div style="padding:28px">
+      <p style="font-size:14px;color:#334155;margin:0 0 16px">
+        Your security analysis report is attached as a PDF.
+      </p>
+      <p style="font-size:13px;color:#64748b;margin:0">
+        Open the attached file to view the full threat breakdown, anomaly details,
+        AI briefing, and remediation steps.
+      </p>
+      <p style="margin-top:24px;font-size:12px;color:#94a3b8;text-align:center">
+        Sent by Log Sentinel · Security Analysis Platform
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+"""
+    html_part = MIMEMultipart("alternative")
+    html_part.attach(MIMEText(html_body, "html"))
+    msg.attach(html_part)
+
+    attachment = MIMEBase("application", "pdf")
+    attachment.set_payload(pdf_bytes)
+    encoders.encode_base64(attachment)
+    attachment.add_header("Content-Disposition", "attachment", filename=filename)
+    msg.attach(attachment)
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        server.login(GMAIL_USER, GMAIL_PASSWORD)
+        server.sendmail(GMAIL_USER, to_email, msg.as_string())
+
+    print(f"[alerts] Report emailed -> {to_email}")
 
 
 def fire_alerts(anomaly: Anomaly) -> None:
